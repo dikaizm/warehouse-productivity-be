@@ -1,0 +1,676 @@
+openapi: 3.1.0
+info:
+  title: Warehouse Productivity API
+  version: 1.0.0
+  description: REST API for tracking warehouse productivity metrics
+
+servers:
+  - url: http://localhost:5050
+    description: Development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token
+
+  schemas:
+    BaseResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Operation completed successfully
+
+    ErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            success:
+              type: boolean
+              example: false
+            message:
+              type: string
+              example: Invalid request parameters
+            errors:
+              type: array
+              items:
+                type: string
+              example: ["Username is required", "Password must be at least 8 characters"]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: johndoe
+        email:
+          type: string
+          format: email
+          example: john.doe@example.com
+        fullName:
+          type: string
+          example: John Doe
+        role:
+          type: string
+          example: "operator"
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: operator
+        description:
+          type: string
+          example: Warehouse operator role
+
+    DailyLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        userId:
+          type: integer
+          example: 1
+        logDate:
+          type: string
+          format: date
+          example: "2024-02-20"
+        isPresent:
+          type: boolean
+          example: true
+        binningCount:
+          type: integer
+          example: 150
+        pickingCount:
+          type: integer
+          example: 200
+        totalItems:
+          type: integer
+          example: 350
+
+    ProductivityMetrics:
+      type: object
+      properties:
+        totalBinning:
+          type: integer
+          example: 1500
+        totalPicking:
+          type: integer
+          example: 2000
+        totalItems:
+          type: integer
+          example: 3500
+        averageItemsPerDay:
+          type: number
+          format: float
+          example: 175.5
+        presentDays:
+          type: integer
+          example: 20
+        totalDays:
+          type: integer
+          example: 22
+        attendanceRate:
+          type: number
+          format: float
+          example: 90.9
+
+    UserProductivity:
+      type: object
+      properties:
+        userId:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: johndoe
+        fullName:
+          type: string
+          example: John Doe
+        totalBinning:
+          type: integer
+          example: 750
+        totalPicking:
+          type: integer
+          example: 1000
+        totalItems:
+          type: integer
+          example: 1750
+        averageItemsPerDay:
+          type: number
+          format: float
+          example: 87.5
+        presentDays:
+          type: integer
+          example: 20
+        attendanceRate:
+          type: number
+          format: float
+          example: 90.9
+
+    DailyProductivity:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2024-02-20"
+        username:
+          type: string
+          example: johndoe
+        fullName:
+          type: string
+          example: John Doe
+        isPresent:
+          type: boolean
+          example: true
+        binningCount:
+          type: integer
+          example: 150
+        pickingCount:
+          type: integer
+          example: 200
+        totalItems:
+          type: integer
+          example: 350
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: ok
+                          timestamp:
+                            type: string
+                            format: date-time
+
+  /api/auth/register:
+    post:
+      summary: Register a new user
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - password
+                - fullName
+                - roleId
+              properties:
+                username:
+                  type: string
+                  example: johndoe
+                email:
+                  type: string
+                  format: email
+                  example: john.doe@example.com
+                password:
+                  type: string
+                  example: password123
+                fullName:
+                  type: string
+                  example: John Doe
+                roleId:
+                  type: integer
+                  example: 1
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Username already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/login:
+    post:
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                usernameOrEmail:
+                  type: string
+                  description: Username or email of the user
+                password:
+                  type: string
+                  description: Password of the user
+              required:
+                - usernameOrEmail
+                - password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                          username:
+                            type: string
+                          email:
+                            type: string
+                          fullName:
+                            type: string
+                          role:
+                            type: string
+                      accessToken:
+                        type: string
+                      refreshToken:
+                        type: string
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/refresh-token:
+    post:
+      summary: Refresh access token
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          accessToken:
+                            type: string
+                            example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/logout:
+    post:
+      summary: Logout user
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/overview/today:
+    get:
+      summary: Get today's productivity overview
+      tags: [Overview]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+          description: Optional date to get overview for (defaults to today)
+      responses:
+        '200':
+          description: Today's overview retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          itemsProcessed:
+                            type: integer
+                            example: 150
+                          workersPresent:
+                            type: integer
+                            example: 6
+                          totalWorkers:
+                            type: integer
+                            example: 8
+                          target:
+                            type: integer
+                            example: 55
+                          actual:
+                            type: integer
+                            example: 150
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/overview/trends:
+    get:
+      summary: Get productivity trends
+      tags: [Overview]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Productivity trends retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          daily:
+                            type: integer
+                            description: Average items processed per day
+                            example: 61
+                          weekly:
+                            type: integer
+                            description: Average items processed per week
+                            example: 427
+                          monthly:
+                            type: integer
+                            description: Average items processed per month
+                            example: 1830
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/overview/details:
+    get:
+      summary: Get detailed productivity data
+      tags: [Overview]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+          description: Number of items per page
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          description: Optional start date filter
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          description: Optional end date filter
+      responses:
+        '200':
+          description: Productivity details retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          data:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                date:
+                                  type: string
+                                  format: date
+                                  example: "2024-02-20"
+                                binning:
+                                  type: integer
+                                  example: 66
+                                picking:
+                                  type: integer
+                                  example: 29
+                                totalWorkers:
+                                  type: integer
+                                  example: 8
+                                workersPresent:
+                                  type: integer
+                                  example: 6
+                          pagination:
+                            type: object
+                            properties:
+                              total:
+                                type: integer
+                                example: 100
+                              page:
+                                type: integer
+                                example: 1
+                              limit:
+                                type: integer
+                                example: 10
+                              totalPages:
+                                type: integer
+                                example: 10
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/overview/seven-day-trend:
+    get:
+      summary: Get seven-day productivity trend
+      tags: [Overview]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Seven day trend retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            date:
+                              type: string
+                              format: date
+                              example: "2024-02-14"
+                            items:
+                              type: integer
+                              example: 85
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/users:
+    get:
+      summary: List users
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/daily-logs:
+    post:
+      summary: Create or update daily log
+      tags: [Daily Logs]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - logDate
+                - isPresent
+              properties:
+                logDate:
+                  type: string
+                  format: date
+                isPresent:
+                  type: boolean
+                binningCount:
+                  type: integer
+                pickingCount:
+                  type: integer
+      responses:
+        '200':
+          description: Daily log created/updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DailyLog'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+security:
+  - bearerAuth: [] 
