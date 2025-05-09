@@ -12,8 +12,8 @@ import { httpLogger, requestLogger, errorLogger } from './middlewares/logging.mi
 import authRoutes from './modules/auth/auth.routes';
 import overviewRoutes from './modules/overview/overview.routes';
 // import userRoutes from './modules/user/user.routes';
-// import dailyLogRoutes from './modules/dailyLog/dailyLog.routes';
-// import activityLogRoutes from './modules/activityLog/activityLog.routes';
+import dailyLogRoutes from './modules/dailyLog/dailyLog.routes';
+import activityLogRoutes from './modules/activityLog/activityLog.routes';
 // import targetRoutes from './modules/target/target.routes';
 // import reportRoutes from './modules/report/report.routes';
 // import settingRoutes from './modules/setting/setting.routes';
@@ -76,8 +76,8 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/overview', overviewRoutes);
 // app.use('/api/users', userRoutes);
-// app.use('/api/daily-logs', dailyLogRoutes);
-// app.use('/api/activity-logs', activityLogRoutes);
+app.use('/api/daily-logs', dailyLogRoutes);
+app.use('/api/activity-logs', activityLogRoutes);
 // app.use('/api/targets', targetRoutes);
 // app.use('/api/reports', reportRoutes);
 // app.use('/api/settings', settingRoutes);
