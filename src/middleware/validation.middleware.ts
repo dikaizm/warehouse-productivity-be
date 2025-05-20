@@ -23,9 +23,11 @@ export const validate = (schema: AnyZodObject) => async (
     next();
   } catch (error) {
     if (error instanceof ZodError) {
-      logger.error('Validation error', {
+      logger.warn('Validation failed', {
         errors: error.errors,
-        body: req.body,
+        path: req.path,
+        method: req.method,
+        body: req.body
       });
       
       const errorMessage = error.errors

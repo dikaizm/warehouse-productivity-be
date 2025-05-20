@@ -8,6 +8,20 @@ servers:
   - url: http://localhost:5050
     description: Development server
 
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Overview
+    description: Productivity overview and dashboard data
+  - name: Daily Logs
+    description: Operations for managing daily productivity logs
+  - name: Activity Logs
+    description: Operations for tracking user activities
+  - name: Users
+    description: User management operations
+  - name: Daily Input
+    description: Operations for daily productivity input
+
 components:
   securitySchemes:
     bearerAuth:
@@ -85,26 +99,27 @@ components:
       properties:
         id:
           type: integer
-          example: 1
         userId:
           type: integer
-          example: 1
         logDate:
           type: string
           format: date
-          example: "2024-02-20"
         isPresent:
           type: boolean
-          example: true
         binningCount:
           type: integer
-          example: 150
         pickingCount:
           type: integer
-          example: 200
         totalItems:
           type: integer
-          example: 350
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/User'
 
     ProductivityMetrics:
       type: object
@@ -192,6 +207,111 @@ components:
           type: integer
           example: 350
 
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+
+    OverviewCountsResponse:
+      type: object
+      properties:
+        binning:
+          type: integer
+          example: 150
+          description: Total binning count for the current day
+        picking:
+          type: integer
+          example: 200
+          description: Total picking count for the current day
+        presentWorkers:
+          type: integer
+          example: 5
+          description: Number of workers present today
+        productivityTarget:
+          type: integer
+          example: 100
+          description: Productivity target for the day
+
+    BarProductivityResponse:
+      type: object
+      properties:
+        productivity:
+          type: number
+          format: float
+          example: 87.5
+          description: Overall productivity percentage
+
+    TrendDataPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date-time
+          example: "2024-05-15T00:00:00.000Z"
+        productivity:
+          type: number
+          format: float
+          example: 85.2
+          description: Productivity percentage for this data point
+        totalItems:
+          type: integer
+          example: 350
+          description: Total items processed for this data point
+
+    RecentLogResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 123
+        logDate:
+          type: string
+          format: date-time
+          example: "2024-05-15T00:00:00.000Z"
+        binningCount:
+          type: integer
+          example: 150
+        pickingCount:
+          type: integer
+          example: 200
+        totalItems:
+          type: integer
+          nullable: true
+          example: 350
+        issueNotes:
+          type: string
+          nullable: true
+          example: "Some operational notes for the day"
+        attendance:
+          type: array
+          items:
+            type: object
+            properties:
+              operator:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  username:
+                    type: string
+                    example: "budi_santoso"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-05-15T08:30:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-05-15T08:30:00.000Z"
+
 paths:
   /health:
     get:
@@ -277,60 +397,85 @@ paths:
   /api/auth/login:
     post:
       summary: Login user
+      tags: [Authentication]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - usernameOrEmail
+                - password
               properties:
                 usernameOrEmail:
                   type: string
                   description: Username or email of the user
+                  example: john
                 password:
                   type: string
                   description: Password of the user
-              required:
-                - usernameOrEmail
-                - password
+                  example: 1234abcd
       responses:
         '200':
           description: Login successful
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  message:
-                    type: string
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
                     properties:
-                      user:
+                      data:
                         type: object
                         properties:
-                          id:
-                            type: integer
-                          username:
+                          user:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                                example: 1
+                              username:
+                                type: string
+                                example: johndoe
+                              email:
+                                type: string
+                                format: email
+                                example: john.doe@example.com
+                              fullName:
+                                type: string
+                                example: John Doe
+                              role:
+                                type: string
+                                example: operator
+                          accessToken:
                             type: string
-                          email:
+                            example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                          refreshToken:
                             type: string
-                          fullName:
-                            type: string
-                          role:
-                            type: string
-                      accessToken:
-                        type: string
-                      refreshToken:
-                        type: string
+                            example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+              example:
+                success: true
+                message: "Login successful"
+                data:
+                  user:
+                    id: 1
+                    username: johndoe
+                    email: john.doe@example.com
+                    fullName: John Doe
+                    role: operator
+                  accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         '401':
           description: Invalid credentials
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: "Invalid username or password"
+                errors: ["Invalid credentials"]
 
   /api/auth/refresh-token:
     post:
@@ -391,22 +536,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/overview/today:
+  /api/overview/counts:
     get:
-      summary: Get today's productivity overview
+      summary: Get today's overview counts
       tags: [Overview]
       security:
         - bearerAuth: []
-      parameters:
-        - in: query
-          name: date
-          schema:
-            type: string
-            format: date
-          description: Optional date to get overview for (defaults to today)
       responses:
         '200':
-          description: Today's overview retrieved successfully
+          description: Today's overview counts
           content:
             application/json:
               schema:
@@ -417,37 +555,53 @@ paths:
                       data:
                         type: object
                         properties:
-                          itemsProcessed:
+                          binning:
                             type: integer
-                            example: 150
-                          workersPresent:
+                            description: Total binning items for today
+                            example: 500
+                          picking:
                             type: integer
-                            example: 6
-                          totalWorkers:
+                            description: Total picking items for today
+                            example: 300
+                          presentWorkers:
                             type: integer
-                            example: 8
-                          target:
+                            description: Number of present workers today
+                            example: 5
+                          productivityTarget:
                             type: integer
+                            description: Target productivity per operator
                             example: 55
-                          actual:
+                          productivityActual:
                             type: integer
-                            example: 150
+                            description: Actual productivity (items per operator)
+                            example: 160
+                    required:
+                      - data
         '401':
           description: Unauthorized
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: "Internal server error"
 
-  /api/overview/trends:
+  /api/overview/bar-productivity:
     get:
-      summary: Get productivity trends
+      summary: Get productivity data for the last 7 days
       tags: [Overview]
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Productivity trends retrieved successfully
+          description: Productivity data for the last 7 days
           content:
             application/json:
               schema:
@@ -458,123 +612,111 @@ paths:
                       data:
                         type: object
                         properties:
-                          daily:
-                            type: integer
-                            description: Average items processed per day
-                            example: 61
-                          weekly:
-                            type: integer
-                            description: Average items processed per week
-                            example: 427
-                          monthly:
-                            type: integer
-                            description: Average items processed per month
-                            example: 1830
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/overview/details:
-    get:
-      summary: Get detailed productivity data
-      tags: [Overview]
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: query
-          name: page
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-          description: Page number
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            minimum: 1
-            default: 10
-          description: Number of items per page
-        - in: query
-          name: startDate
-          schema:
-            type: string
-            format: date
-          description: Optional start date filter
-        - in: query
-          name: endDate
-          schema:
-            type: string
-            format: date
-          description: Optional end date filter
-      responses:
-        '200':
-          description: Productivity details retrieved successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/BaseResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
-                          data:
+                          productivity:
                             type: array
                             items:
                               type: object
                               properties:
                                 date:
                                   type: string
-                                  format: date
-                                  example: "2024-02-20"
-                                binning:
+                                  format: date-time
+                                  description: Date of the productivity data
+                                  example: "2024-03-15T00:00:00Z"
+                                productivity:
                                   type: integer
-                                  example: 66
-                                picking:
-                                  type: integer
-                                  example: 29
-                                totalWorkers:
-                                  type: integer
-                                  example: 8
-                                workersPresent:
-                                  type: integer
-                                  example: 6
-                          pagination:
-                            type: object
-                            properties:
-                              total:
-                                type: integer
-                                example: 100
-                              page:
-                                type: integer
-                                example: 1
-                              limit:
-                                type: integer
-                                example: 10
-                              totalPages:
-                                type: integer
-                                example: 10
+                                  description: Items per operator for that day
+                                  example: 160
+                          target:
+                            type: integer
+                            description: Target productivity per operator
+                            example: 55
+                    required:
+                      - data
         '401':
           description: Unauthorized
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /api/overview/seven-day-trend:
+  /api/overview/trend:
     get:
-      summary: Get seven-day productivity trend
+      summary: Get average productivity trends
       tags: [Overview]
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Seven day trend retrieved successfully
+          description: Average productivity trends
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          daily_average:
+                            type: integer
+                            description: Average items per operator per day across all time
+                            example: 160
+                          weekly_average:
+                            type: integer
+                            description: Average items per operator per week across all time
+                            example: 155
+                          monthly_average:
+                            type: integer
+                            description: Average items per operator per month across all time
+                            example: 150
+                    required:
+                      - data
+        '400':
+          description: Invalid period parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/overview/recent-logs:
+    get:
+      summary: Get recent daily logs
+      tags: [Overview]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+            example: 10
+          description: Number of recent logs to return
+      responses:
+        '200':
+          description: Recent daily logs
           content:
             application/json:
               schema:
@@ -587,15 +729,49 @@ paths:
                         items:
                           type: object
                           properties:
-                            date:
-                              type: string
-                              format: date
-                              example: "2024-02-14"
-                            items:
+                            id:
                               type: integer
-                              example: 85
+                              example: 1
+                            logDate:
+                              type: string
+                              format: date-time
+                              example: "2024-03-15T00:00:00Z"
+                            binningCount:
+                              type: integer
+                              example: 500
+                            pickingCount:
+                              type: integer
+                              example: 300
+                            attendance:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  operator:
+                                    type: object
+                                    properties:
+                                      id:
+                                        type: integer
+                                        example: 1
+                                      username:
+                                        type: string
+                                        example: "john_doe"
+                    required:
+                      - data
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -651,11 +827,13 @@ paths:
                   type: boolean
                 binningCount:
                   type: integer
+                  minimum: 0
                 pickingCount:
                   type: integer
+                  minimum: 0
       responses:
         '200':
-          description: Daily log created/updated
+          description: Daily log created/updated successfully
           content:
             application/json:
               schema:
@@ -665,6 +843,570 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/DailyLog'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: List daily logs
+      tags: [Daily Logs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: userId
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of daily logs
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DailyLog'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/daily-logs/{id}:
+    get:
+      summary: Get specific daily log
+      tags: [Daily Logs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Daily log retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DailyLog'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete daily log
+      tags: [Daily Logs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Daily log deleted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          message:
+                            type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/daily-logs/user/{userId}:
+    get:
+      summary: Get user's daily logs
+      tags: [Daily Logs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: User's daily logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DailyLog'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/activity-logs:
+    post:
+      summary: Create activity log
+      tags: [Activity Logs]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - dataType
+                - status
+              properties:
+                userId:
+                  type: integer
+                dataType:
+                  type: string
+                  enum: [binning, picking, attendance]
+                status:
+                  type: string
+                  enum: [success, failure]
+                changeHistory:
+                  type: object
+      responses:
+        '200':
+          description: Activity log created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ActivityLog'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: List activity logs
+      tags: [Activity Logs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: userId
+          schema:
+            type: integer
+        - in: query
+          name: dataType
+          schema:
+            type: string
+            enum: [binning, picking, attendance]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [success, failure]
+      responses:
+        '200':
+          description: List of activity logs
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ActivityLog'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/activity-logs/{id}:
+    get:
+      summary: Get specific activity log
+      tags: [Activity Logs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Activity log retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ActivityLog'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/activity-logs/user/{userId}:
+    get:
+      summary: Get user's activity logs
+      tags: [Activity Logs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: dataType
+          schema:
+            type: string
+            enum: [binning, picking, attendance]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [success, failure]
+      responses:
+        '200':
+          description: User's activity logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ActivityLog'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/activity-logs/stats:
+    get:
+      summary: Get activity statistics
+      tags: [Activity Logs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: dataType
+          schema:
+            type: string
+            enum: [binning, picking, attendance]
+      responses:
+        '200':
+          description: Activity statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          totalActivities:
+                            type: object
+                            properties:
+                              binning:
+                                type: integer
+                              picking:
+                                type: integer
+                              attendance:
+                                type: integer
+                          successRates:
+                            type: object
+                            properties:
+                              binning:
+                                type: number
+                                format: float
+                              picking:
+                                type: number
+                                format: float
+                              attendance:
+                                type: number
+                                format: float
+                          dailyAverages:
+                            type: object
+                            properties:
+                              binning:
+                                type: number
+                                format: float
+                              picking:
+                                type: number
+                                format: float
+                              attendance:
+                                type: number
+                                format: float
+                          mostActiveUsers:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                userId:
+                                  type: integer
+                                username:
+                                  type: string
+                                totalActivities:
+                                  type: integer
+                          mostCommonTypes:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                type:
+                                  type: string
+                                count:
+                                  type: integer
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/daily-input:
+    post:
+      summary: Create or update daily productivity input
+      tags: [Daily Input]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - date
+                - binningCount
+                - pickingCount
+                - isPresent
+              properties:
+                date:
+                  type: string
+                  format: date
+                  description: Date of the productivity record
+                binningCount:
+                  type: integer
+                  minimum: 0
+                  description: Number of items processed in binning (incoming items)
+                pickingCount:
+                  type: integer
+                  minimum: 0
+                  description: Number of items processed in picking (outgoing items)
+                isPresent:
+                  type: boolean
+                  description: Whether the operator was present on this date
+                notes:
+                  type: string
+                  description: Optional notes about work challenges or issues
+      responses:
+        '200':
+          description: Daily input created/updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                          date:
+                            type: string
+                            format: date
+                          binningCount:
+                            type: integer
+                          pickingCount:
+                            type: integer
+                          totalItems:
+                            type: integer
+                          isPresent:
+                            type: boolean
+                          notes:
+                            type: string
+                          createdAt:
+                            type: string
+                            format: date-time
+                          updatedAt:
+                            type: string
+                            format: date-time
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized
           content:

@@ -1,361 +1,230 @@
-import prisma from '../../config/prisma';
-import { AppError } from '../../middlewares/error.middleware';
-import { DailyLog, User } from '@prisma/client';
-import { startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
-import type { Prisma } from '@prisma/client';
 import { PrismaClient } from '@prisma/client';
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subWeeks, subMonths, isSameDay, isSameWeek, isSameMonth } from 'date-fns';
+import { OverviewCountsResponse, BarProductivityResponse, TrendDataPoint, RecentLogResponse, TrendResponse } from './overview.schema';
+import { PRODUCTIVITY } from '../../config/constants';
 
-interface ProductivityMetrics {
-  totalBinning: number;
-  totalPicking: number;
-  totalItems: number;
-  averageItemsPerDay: number;
-  presentDays: number;
-  totalDays: number;
-  attendanceRate: number;
-}
+const prisma = new PrismaClient();
 
-interface UserProductivity {
-  userId: number;
-  username: string;
-  fullName: string | null;
-  totalBinning: number;
-  totalPicking: number;
-  totalItems: number;
-  averageItemsPerDay: number;
-  presentDays: number;
-  attendanceRate: number;
-}
+export class OverviewService {
+  async getOverviewCounts(): Promise<OverviewCountsResponse> {
+    const today = new Date();
+    const startOfToday = startOfDay(today);
+    const endOfToday = endOfDay(today);
 
-interface UserWithDailyLogs extends User {
-  dailyLogs: DailyLog[];
-}
-
-interface DailyLogWithUser {
-  id: number;
-  logDate: Date;
-  isPresent: boolean;
-  binningCount: number | null;
-  pickingCount: number | null;
-  user: {
-    id: number;
-    username: string;
-    fullName: string;
-  };
-}
-
-interface DailyLog {
-  binningCount: number | null;
-  pickingCount: number | null;
-}
-
-const prismaClient = new PrismaClient();
-
-export const getProductivityMetrics = async (
-  startDate: Date,
-  endDate: Date
-): Promise<ProductivityMetrics> => {
-  const dailyLogs = await prisma.dailyLog.findMany({
-    where: {
-      logDate: {
-        gte: startDate,
-        lte: endDate,
+    const dailyLog = await prisma.dailyLog.findFirst({
+      where: {
+        logDate: {
+          gte: startOfToday,
+          lte: endOfToday
+        }
       },
-    },
-  });
-
-  if (dailyLogs.length === 0) {
-    throw new AppError(404, 'No data found for the specified date range');
-  }
-
-  const totalBinning = dailyLogs.reduce((sum: number, log: DailyLog) => sum + log.binningCount, 0);
-  const totalPicking = dailyLogs.reduce((sum: number, log: DailyLog) => sum + log.pickingCount, 0);
-  const totalItems = totalBinning + totalPicking;
-  const presentDays = dailyLogs.filter((log: DailyLog) => log.isPresent).length;
-  const totalDays = dailyLogs.length;
-
-  return {
-    totalBinning,
-    totalPicking,
-    totalItems,
-    averageItemsPerDay: totalItems / presentDays,
-    presentDays,
-    totalDays,
-    attendanceRate: (presentDays / totalDays) * 100,
-  };
-};
-
-export const getUserProductivity = async (
-  startDate: Date,
-  endDate: Date
-): Promise<UserProductivity[]> => {
-  const users = await prisma.user.findMany({
-    include: {
-      dailyLogs: {
-        where: {
-          logDate: {
-            gte: startDate,
-            lte: endDate,
+      include: {
+        attendance: {
+          where: {
+            present: true
           },
-        },
-      },
-    },
-  }) as UserWithDailyLogs[];
+          include: {
+            operator: {
+              select: {
+                id: true,
+                username: true
+              }
+            }
+          }
+        }
+      }
+    });
 
-  if (users.length === 0) {
-    throw new AppError(404, 'No users found');
-  }
-
-  return users.map((user: UserWithDailyLogs) => {
-    const totalBinning = user.dailyLogs.reduce((sum: number, log: DailyLog) => sum + log.binningCount, 0);
-    const totalPicking = user.dailyLogs.reduce((sum: number, log: DailyLog) => sum + log.pickingCount, 0);
-    const totalItems = totalBinning + totalPicking;
-    const presentDays = user.dailyLogs.filter((log: DailyLog) => log.isPresent).length;
-    const totalDays = user.dailyLogs.length;
+    const totalItems = (dailyLog?.binningCount || 0) + (dailyLog?.pickingCount || 0);
+    const operatorCount = dailyLog?.attendance.length || 0;
+    const productivityActual = operatorCount > 0 ? Math.round(totalItems / operatorCount) : 0;
 
     return {
-      userId: user.id,
-      username: user.username,
-      fullName: user.fullName,
-      totalBinning,
-      totalPicking,
-      totalItems,
-      averageItemsPerDay: presentDays > 0 ? totalItems / presentDays : 0,
-      presentDays,
-      attendanceRate: totalDays > 0 ? (presentDays / totalDays) * 100 : 0,
+      totalItemsToday: totalItems,
+      presentWorkers: operatorCount,
+      productivityTarget: PRODUCTIVITY.TARGET,
+      productivityActual
     };
-  });
-};
-
-export const getDailyProductivity = async (
-  startDate: Date,
-  endDate: Date
-) => {
-  const dailyLogs = await prisma.dailyLog.findMany({
-    where: {
-      logDate: {
-        gte: startDate,
-        lte: endDate,
-      },
-    },
-    include: {
-      user: {
-        select: {
-          username: true,
-          fullName: true,
-        },
-      },
-    },
-    orderBy: {
-      logDate: 'asc',
-    },
-  });
-
-  if (dailyLogs.length === 0) {
-    throw new AppError(404, 'No data found for the specified date range');
   }
 
-  return dailyLogs.map((log) => ({
-    date: log.logDate,
-    username: log.user.username,
-    fullName: log.user.fullName,
-    isPresent: log.isPresent,
-    binningCount: log.binningCount,
-    pickingCount: log.pickingCount,
-    totalItems: log.binningCount + log.pickingCount,
-  }));
-};
+  async getBarProductivity(): Promise<BarProductivityResponse> {
+    // Calculate the date range for the last 7 days
+    const end = endOfDay(new Date());
+    const start = startOfDay(subDays(end, 7 - 1));
 
-export const getTodayOverview = async (date?: string) => {
-  const targetDate = date ? new Date(date) : new Date();
-  const start = startOfDay(targetDate);
-  const end = endOfDay(targetDate);
-
-  // Get today's logs
-  const todayLogs = await prisma.dailyLog.findMany({
-    where: {
-      logDate: {
-        gte: start,
-        lte: end,
+    const dailyLogs = await prisma.dailyLog.findMany({
+      where: {
+        logDate: {
+          gte: start,
+          lte: end
+        }
       },
-    },
-    include: {
-      user: true,
-    },
-  });
-
-  // Calculate metrics
-  const itemsProcessed = todayLogs.reduce((sum: number, log: DailyLogWithUser) => 
-    sum + (log.binningCount || 0) + (log.pickingCount || 0), 0);
-  const workersPresent = todayLogs.filter(log => log.isPresent).length;
-  const totalWorkers = await prisma.user.count({
-    where: {
-      role: {
-        name: 'operator',
-      },
-    },
-  });
-
-  // Get target (you might want to store this in a settings table)
-  const target = 55;
-
-  return {
-    itemsProcessed,
-    workersPresent,
-    totalWorkers,
-    target,
-    actual: itemsProcessed,
-  };
-};
-
-export const getProductivityTrends = async () => {
-  const today = new Date();
-  const dayStart = startOfDay(today);
-  const weekStart = startOfWeek(today);
-  const monthStart = startOfMonth(today);
-
-  // Get daily average
-  const dailyLogs = await prismaClient.dailyLog.findMany({
-    where: {
-      logDate: {
-        gte: dayStart,
-      },
-    },
-    select: {
-      binningCount: true,
-      pickingCount: true,
-    },
-  });
-
-  const dailyTotal = dailyLogs.reduce((sum, log: DailyLog) => sum + (log.binningCount || 0) + (log.pickingCount || 0), 0);
-  const dailyAverage = dailyLogs.length > 0 ? Math.round(dailyTotal / dailyLogs.length) : 0;
-
-  // Get weekly average
-  const weeklyLogs = await prismaClient.dailyLog.findMany({
-    where: {
-      logDate: {
-        gte: weekStart,
-      },
-    },
-    select: {
-      binningCount: true,
-      pickingCount: true,
-    },
-  });
-
-  const weeklyTotal = weeklyLogs.reduce((sum, log: DailyLog) => sum + (log.binningCount || 0) + (log.pickingCount || 0), 0);
-  const weeklyAverage = weeklyLogs.length > 0 ? Math.round(weeklyTotal / weeklyLogs.length) : 0;
-
-  // Get monthly average
-  const monthlyLogs = await prismaClient.dailyLog.findMany({
-    where: {
-      logDate: {
-        gte: monthStart,
-      },
-    },
-    select: {
-      binningCount: true,
-      pickingCount: true,
-    },
-  });
-
-  const monthlyTotal = monthlyLogs.reduce((sum, log: DailyLog) => sum + (log.binningCount || 0) + (log.pickingCount || 0), 0);
-  const monthlyAverage = monthlyLogs.length > 0 ? Math.round(monthlyTotal / monthlyLogs.length) : 0;
-
-  return {
-    daily: dailyAverage,
-    weekly: weeklyAverage,
-    monthly: monthlyAverage,
-  };
-};
-
-export const getProductivityDetails = async (page: number, limit: number, startDate?: string, endDate?: string) => {
-  const skip = (page - 1) * limit;
-  
-  const where: Prisma.DailyLogWhereInput = {
-    ...(startDate && endDate ? {
-      logDate: {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
-      },
-    } : {}),
-  };
-
-  const [logs, total] = await Promise.all([
-    prisma.dailyLog.findMany({
-      where,
-      include: {
-        user: true,
+      select: {
+        logDate: true,
+        binningCount: true,
+        pickingCount: true,
+        attendance: {
+          where: {
+            present: true
+          },
+          select: {
+            operatorId: true
+          }
+        }
       },
       orderBy: {
-        logDate: 'desc',
-      },
-      skip,
-      take: limit,
-    }),
-    prisma.dailyLog.count({ where }),
-  ]);
-
-  const totalWorkers = await prisma.user.count({
-    where: {
-      role: {
-        name: 'operator',
-      },
-    },
-  });
-
-  return {
-    data: logs.map(log => ({
-      date: log.logDate.toISOString().split('T')[0],
-      binning: log.binningCount || 0,
-      picking: log.pickingCount || 0,
-      totalWorkers,
-      workersPresent: log.isPresent ? 1 : 0,
-    })),
-    pagination: {
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    },
-  };
-};
-
-export const getSevenDayTrend = async () => {
-  const end = new Date();
-  const start = subDays(end, 6);
-
-  const logs = await prisma.dailyLog.findMany({
-    where: {
-      logDate: {
-        gte: start,
-        lte: end,
-      },
-    },
-    orderBy: {
-      logDate: 'asc',
-    },
-  });
-
-  // Create a map of dates to ensure we have all 7 days
-  const dateMap = new Map<string, { date: string; items: number }>();
-  for (let i = 0; i < 7; i++) {
-    const date = subDays(end, i);
-    dateMap.set(date.toISOString().split('T')[0], {
-      date: date.toISOString().split('T')[0],
-      items: 0,
+        logDate: 'asc'
+      }
     });
+
+    // Calculate productivity for each day
+    const productivityData = dailyLogs.map(log => {
+      const totalItems = (log.binningCount || 0) + (log.pickingCount || 0);
+      const operatorCount = log.attendance.length;
+      const productivity = operatorCount > 0 ? Math.round(totalItems / operatorCount) : 0;
+
+      return {
+        date: log.logDate,
+        count: productivity
+      };
+    });
+
+    // Fill in missing days with zero productivity
+    const allDays = Array.from({ length: 7 }, (_, i) => {
+      const date = subDays(end, 7 - 1 - i);
+      return startOfDay(date);
+    });
+
+    const filledData = allDays.map(date => {
+      const existingData = productivityData.find(d => 
+        d.date.getTime() === date.getTime()
+      );
+      return existingData || { date, count: 0 };
+    });
+
+    return {
+      productivity: filledData,
+      target: PRODUCTIVITY.TARGET
+    };
   }
 
-  // Fill in the actual data
-  logs.forEach(log => {
-    const date = log.logDate.toISOString().split('T')[0];
-    const items = (log.binningCount || 0) + (log.pickingCount || 0);
-    dateMap.set(date, {
-      date,
-      items,
-    });
-  });
+  async getTrend(): Promise<TrendResponse> {
+    const today = new Date();
 
-  return Array.from(dateMap.values()).reverse();
-}; 
+    // Fetch all logs without date restriction
+    const logs = await prisma.dailyLog.findMany({
+      select: {
+        binningCount: true,
+        pickingCount: true,
+        logDate: true,
+        attendance: {
+          where: {
+            present: true
+          },
+          select: {
+            operatorId: true
+          }
+        }
+      },
+      orderBy: {
+        logDate: 'asc'
+      }
+    });
+
+    // Calculate daily productivity for each day
+    const dailyProductivities = logs.map(log => {
+      const totalItems = (log.binningCount || 0) + (log.pickingCount || 0);
+      const operatorCount = log.attendance.length;
+      return operatorCount > 0 ? Math.round(totalItems / operatorCount) : 0;
+    });
+
+    // Calculate weekly averages
+    const weeklyGroups = new Map<string, { items: number; operators: number; count: number }>();
+    logs.forEach(log => {
+      const weekStart = startOfWeek(log.logDate);
+      const weekKey = weekStart.toISOString();
+      
+      const group = weeklyGroups.get(weekKey) || { items: 0, operators: 0, count: 0 };
+      group.items += (log.binningCount || 0) + (log.pickingCount || 0);
+      group.operators += log.attendance.length;
+      group.count += 1;
+      weeklyGroups.set(weekKey, group);
+    });
+
+    const weeklyProductivities = Array.from(weeklyGroups.values()).map(group => {
+      const avgItems = group.items / group.count;
+      const avgOperators = group.operators / group.count;
+      return avgOperators > 0 ? Math.round(avgItems / avgOperators) : 0;
+    });
+
+    // Calculate monthly averages
+    const monthlyGroups = new Map<string, { items: number; operators: number; count: number }>();
+    logs.forEach(log => {
+      const monthStart = startOfMonth(log.logDate);
+      const monthKey = monthStart.toISOString();
+      
+      const group = monthlyGroups.get(monthKey) || { items: 0, operators: 0, count: 0 };
+      group.items += (log.binningCount || 0) + (log.pickingCount || 0);
+      group.operators += log.attendance.length;
+      group.count += 1;
+      monthlyGroups.set(monthKey, group);
+    });
+
+    const monthlyProductivities = Array.from(monthlyGroups.values()).map(group => {
+      const avgItems = group.items / group.count;
+      const avgOperators = group.operators / group.count;
+      return avgOperators > 0 ? Math.round(avgItems / avgOperators) : 0;
+    });
+
+    // Calculate final averages
+    const calculateAverage = (numbers: number[]): number => {
+      if (numbers.length === 0) return 0;
+      const sum = numbers.reduce((a, b) => a + b, 0);
+      return Math.round(sum / numbers.length);
+    };
+
+    return {
+      daily_average: calculateAverage(dailyProductivities),
+      weekly_average: calculateAverage(weeklyProductivities),
+      monthly_average: calculateAverage(monthlyProductivities)
+    };
+  }
+
+  async getRecentLogs(limit: number): Promise<RecentLogResponse[]> {
+    // Find total worker that role is operasional
+    const totalWorkers = await prisma.user.count({
+      where: {
+        role: {
+          name: 'operasional'
+        }
+      }
+    });
+
+    const recentLogs = await prisma.dailyLog.findMany({
+      take: limit,
+      orderBy: {
+        logDate: 'desc'
+      },
+      include: {
+        attendance: {
+          where: {
+            present: true
+          },
+          include: {
+            operator: {
+              select: {
+                id: true,
+                username: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    return recentLogs.map(log => ({
+      ...log,
+      totalWorkers
+    }));
+  }
+} 

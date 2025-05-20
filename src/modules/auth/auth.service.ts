@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import prisma from '../../config/prisma';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../../utils/jwt';
-import { AppError } from '../../middlewares/error.middleware';
+import { AppError } from '../../middleware/error.middleware';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 

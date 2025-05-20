@@ -1,0 +1,27 @@
+sequenceDiagram
+    actor User
+    participant Frontend
+    participant API
+    participant PostgreSQL
+    participant Cache
+
+    User->>Frontend: Submit daily log
+    Frontend->>API: POST /api/daily-logs
+    API->>PostgreSQL: Create/Update daily_log
+    PostgreSQL->>PostgreSQL: Calculate totals
+    API->>Cache: Invalidate overview cache
+    API->>Frontend: Return success
+    Frontend->>User: Show confirmation
+
+    User->>Frontend: View dashboard
+    Frontend->>API: GET /api/overview/counts
+    API->>Cache: Check cache
+    alt Cache hit
+        Cache->>API: Return cached data
+    else Cache miss
+        API->>PostgreSQL: Query daily_logs
+        PostgreSQL->>API: Return aggregate data
+        API->>Cache: Store in cache
+    end
+    API->>Frontend: Return overview data
+    Frontend->>User: Display dashboard 

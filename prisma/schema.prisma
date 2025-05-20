@@ -15,9 +15,9 @@ model User {
   fullName      String?   @map("full_name")
   roleId        Int       @map("role_id")
   role          Role      @relation(fields: [roleId], references: [id])
-  dailyLogs     DailyLog[]
-  activityLogs  ActivityLog[]
-  reportRequests ReportRequest[]
+  isActive      Boolean   @default(true) @map("is_active")
+  attendance    Attendance[]
+  reportLogs    ReportLog[]
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt       @map("updated_at")
 
@@ -27,6 +27,8 @@ model User {
 model Role {
   id          Int       @id @default(autoincrement()) @map("id")
   name        String    @unique @map("name")
+  editAccess  Boolean   @default(false) @map("edit_access")
+  viewAccess  Boolean   @default(true) @map("view_access")
   description String?   @map("description")
   users       User[]
 
@@ -35,68 +37,44 @@ model Role {
 
 model DailyLog {
   id            Int       @id @default(autoincrement()) @map("id")
-  user          User      @relation(fields: [userId], references: [id])
-  userId        Int       @map("user_id")
-  logDate       DateTime  @map("log_date")
-  isPresent     Boolean   @default(false) @map("is_present")
+  logDate       DateTime  @unique @map("log_date")
   binningCount  Int       @default(0) @map("binning_count")
   pickingCount  Int       @default(0) @map("picking_count")
-  totalItems    Int       @map("total_items") // computed in service layer
+  totalItems    Int?      @map("total_items")
+  issueNotes    String?   @db.Text @map("issue_notes")
+  attendance    Attendance[]
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt       @map("updated_at")
 
-  @@unique([userId, logDate])
+  @@index([logDate])
   @@map("daily_logs")
 }
 
-model ActivityLog {
+model ReportLog {
   id            Int       @id @default(autoincrement()) @map("id")
-  user          User      @relation(fields: [userId], references: [id])
+  name          String    @map("name")
+  type          String    @map("type") // daily | weekly | monthly
+  fileFormat    String    @map("file_format") // pdf | csv
+  startDate     DateTime  @map("start_date")
+  endDate       DateTime  @map("end_date")
   userId        Int       @map("user_id")
-  activityTime  DateTime  @default(now())  @map("activity_time")
-  dataType      String    @map("data_type") // binning | picking | attendance
-  status        String    @map("status") // success | failure
-  changeHistory Json?     @map("change_history")
+  user          User      @relation(fields: [userId], references: [id])
+  filePath      String    @map("file_path")
+  generatedAt   DateTime  @default(now()) @map("generated_at")
 
-  @@map("activity_logs")
+  @@index([userId])
+  @@index([generatedAt])
+  @@map("report_logs")
 }
 
-model Target {
-  id             Int      @id @default(autoincrement()) @map("id")
-  dailyTarget    Int      @map("daily_target")
-  effectiveFrom  DateTime @map("effective_from")
-  effectiveTo    DateTime? @map("effective_to")
+model Attendance {
+  id            Int       @id @default(autoincrement()) @map("id")
+  dailyLog      DailyLog  @relation(fields: [dailyLogId], references: [id])
+  dailyLogId    Int       @map("daily_log_id")
+  operator      User      @relation(fields: [operatorId], references: [id])
+  operatorId    Int       @map("operator_id")
+  present       Boolean   @default(true) @map("present")
 
-  @@map("targets")
+  @@index([operatorId, dailyLogId])
+  @@map("attendance")
 }
-
-model WorkSchedule {
-  id          Int   @id @default(autoincrement()) @map("id")
-  dayOfWeek   Int   @map("day_of_week") // 1 = Monday … 7 = Sunday
-  isWorkday   Boolean @default(true) @map("is_workday")
-
-  @@map("work_schedules")
-}
-
-model Setting {
-  id     Int    @id @default(autoincrement()) @map("id")
-  key    String @unique @map("key")
-  value  String @map("value")
-
-  @@map("settings")
-}
-
-model ReportRequest {
-  id            Int      @id @default(autoincrement()) @map("id")
-  user          User     @relation(fields: [userId], references: [id])
-  userId        Int      @map("user_id")
-  startDate     DateTime @map("start_date")
-  endDate       DateTime @map("end_date")
-  reportType    String   @map("report_type") // daily | weekly | monthly
-  exportFormat  String   @map("export_format") // excel | pdf
-  emailTo       String?  @map("email_to")
-  status        String   @map("status") // pending | sent | failed
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  @@map("report_requests")
-} 

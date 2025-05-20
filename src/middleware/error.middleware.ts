@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
+import logger from '../utils/logger';
 
 export class AppError extends Error {
   constructor(
@@ -19,14 +20,19 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  console.error(err);
+  logger.error('Error occurred:', {
+    error: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method
+  });
 
   // Handle Zod validation errors
   if (err instanceof ZodError) {
     return res.status(400).json({
       success: false,
       message: 'Validation error',
-      errors: err.errors.map(e => e.message),
+      errors: err.errors.map(e => e.message)
     });
   }
 
@@ -36,13 +42,13 @@ export const errorHandler = (
       return res.status(409).json({
         success: false,
         message: 'Unique constraint violation',
-        errors: [`${err.meta?.target} already exists`],
+        errors: [`${err.meta?.target} already exists`]
       });
     }
     if (err.code === 'P2025') {
       return res.status(404).json({
         success: false,
-        message: 'Record not found',
+        message: 'Record not found'
       });
     }
   }
@@ -52,7 +58,7 @@ export const errorHandler = (
     return res.status(err.statusCode).json({
       success: false,
       message: err.message,
-      errors: err.errors,
+      errors: err.errors
     });
   }
 
@@ -61,6 +67,6 @@ export const errorHandler = (
     success: false,
     message: process.env.NODE_ENV === 'production' 
       ? 'Internal server error' 
-      : err.message,
+      : err.message
   });
 }; 

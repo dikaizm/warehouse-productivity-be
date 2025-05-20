@@ -1,23 +1,58 @@
 import { z } from 'zod';
 
-export const overviewQuerySchema = z.object({
-  startDate: z.string(),
-  endDate: z.string(),
-}).refine((data) => new Date(data.startDate) <= new Date(data.endDate), {
-  message: "Start date must be before or equal to end date",
+// Validation Schemas
+export const trendSchema = z.object({
+  period: z.enum(['daily', 'weekly', 'monthly']),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 });
 
-export const todayOverviewSchema = z.object({
-  date: z.string().optional(),
+export const recentLogsSchema = z.object({
+  limit: z.number().int().min(1).max(50).default(10)
 });
 
-export const productivityTrendsSchema = z.object({
-  period: z.enum(['day', 'week', 'month']).default('day'),
-});
+// Response Types
+export interface OverviewCountsResponse {
+  totalItemsToday: number;
+  presentWorkers: number;
+  productivityTarget: number;
+  productivityActual: number;
+}
 
-export const productivityDetailsSchema = z.object({
-  page: z.number().int().positive().default(1),
-  limit: z.number().int().positive().default(10),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-}); 
+export interface BarProductivityResponse {
+  productivity: Array<{
+    date: Date;
+    count: number;
+  }>;
+  target: number;
+}
+
+export interface TrendDataPoint {
+  date: Date;
+  productivity: number;
+  totalItems: number;
+}
+
+export interface RecentLogResponse {
+  id: number;
+  logDate: Date;
+  binningCount: number;
+  pickingCount: number;
+  totalItems: number | null;
+  issueNotes: string | null;
+  totalWorkers: number;
+  attendance: {
+    operator: {
+      id: number;
+      username: string;
+    };
+  }[];
+  createdAt: Date;
+  updatedAt: Date;
+} 
+
+export interface TrendResponse {
+  daily_average: number;
+  weekly_average: number;
+  monthly_average: number;
+}

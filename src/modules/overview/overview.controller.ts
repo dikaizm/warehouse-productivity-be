@@ -1,55 +1,73 @@
 import { Request, Response } from 'express';
-import {
-  getTodayOverview,
-  getProductivityTrends,
-  getProductivityDetails,
-  getSevenDayTrend,
-} from './overview.service';
+import { OverviewService } from './overview.service';
 
-export const getTodayOverviewHandler = async (req: Request, res: Response) => {
-  const { date } = req.query;
-  const overview = await getTodayOverview(date as string);
-  
-  res.json({
-    success: true,
-    message: 'Today\'s overview retrieved successfully',
-    data: overview,
-  });
+const overviewService = new OverviewService();
+
+export const getOverviewCounts = async (req: Request, res: Response) => {
+  try {
+    const data = await overviewService.getOverviewCounts();
+    return res.json({
+      success: true,
+      message: 'Overview counts fetched successfully',
+      data: data,
+    });
+  } catch (error) {
+    console.error('Error getting overview counts:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  }
 };
 
-export const getProductivityTrendsHandler = async (req: Request, res: Response) => {
-  const { period } = req.query;
-  const trends = await getProductivityTrends(period as 'day' | 'week' | 'month');
-  
-  res.json({
-    success: true,
-    message: 'Productivity trends retrieved successfully',
-    data: trends,
-  });
+export const getBarProductivity = async (req: Request, res: Response) => {
+  try {
+    const data = await overviewService.getBarProductivity();
+    return res.json({
+      success: true,
+      message: 'Bar productivity fetched successfully',
+      data
+    });
+  } catch (error) {
+    console.error('Error calculating bar productivity:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
 };
 
-export const getProductivityDetailsHandler = async (req: Request, res: Response) => {
-  const { page, limit, startDate, endDate } = req.query;
-  const details = await getProductivityDetails(
-    Number(page) || 1,
-    Number(limit) || 10,
-    startDate as string,
-    endDate as string
-  );
-  
-  res.json({
-    success: true,
-    message: 'Productivity details retrieved successfully',
-    data: details,
-  });
+export const getTrend = async (req: Request, res: Response) => {
+  try {
+    const data = await overviewService.getTrend();
+    return res.json({
+      success: true,
+      message: 'Trend fetched successfully',
+      data: data,
+    });
+  } catch (error) {
+    console.error('Error getting trend data:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  }
 };
 
-export const getSevenDayTrendHandler = async (req: Request, res: Response) => {
-  const trend = await getSevenDayTrend();
-  
-  res.json({
-    success: true,
-    message: 'Seven day trend retrieved successfully',
-    data: trend,
-  });
-}; 
+export const getRecentLogs = async (req: Request, res: Response) => {
+  try {
+    const { limit } = req.query;
+    const data = await overviewService.getRecentLogs(Number(limit));
+    return res.json({
+      success: true,
+      message: 'Recent logs fetched successfully',
+      data: data,
+    });
+  } catch (error) {
+    console.error('Error getting recent logs:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  }
+};

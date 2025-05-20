@@ -5,18 +5,13 @@ import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import path from 'path';
-import { errorHandler } from './middlewares/error.middleware';
-import { httpLogger, requestLogger, errorLogger } from './middlewares/logging.middleware';
+import { errorHandler } from './middleware/error.middleware';
+import { httpLogger, requestLogger, errorLogger } from './middleware/logging.middleware';
 
 // Import routes
 import authRoutes from './modules/auth/auth.routes';
 import overviewRoutes from './modules/overview/overview.routes';
-// import userRoutes from './modules/user/user.routes';
 import dailyLogRoutes from './modules/dailyLog/dailyLog.routes';
-import activityLogRoutes from './modules/activityLog/activityLog.routes';
-// import targetRoutes from './modules/target/target.routes';
-// import reportRoutes from './modules/report/report.routes';
-// import settingRoutes from './modules/setting/setting.routes';
 
 const app = express();
 
@@ -33,11 +28,11 @@ app.use(cors({
 }));
 
 // Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-});
-app.use(limiter);
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: 100, // limit each IP to 100 requests per windowMs
+// });
+// app.use(limiter);
 
 // Logging middleware
 app.use(httpLogger);
@@ -77,8 +72,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/overview', overviewRoutes);
 // app.use('/api/users', userRoutes);
 app.use('/api/daily-logs', dailyLogRoutes);
-app.use('/api/activity-logs', activityLogRoutes);
-// app.use('/api/targets', targetRoutes);
 // app.use('/api/reports', reportRoutes);
 // app.use('/api/settings', settingRoutes);
 

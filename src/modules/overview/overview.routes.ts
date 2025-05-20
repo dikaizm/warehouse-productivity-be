@@ -1,27 +1,32 @@
 import { Router } from 'express';
-import { validate } from '../../middlewares/validation.middleware';
-import { requireAuth } from '../../middlewares/auth.middleware';
-import {
-  getTodayOverviewHandler,
-  getProductivityTrendsHandler,
-  getProductivityDetailsHandler,
-  getSevenDayTrendHandler,
-} from './overview.controller';
-import {
-  todayOverviewSchema,
-  productivityTrendsSchema,
-  productivityDetailsSchema,
-} from './overview.schema';
+import { z } from 'zod';
+import { authenticateJWT } from '../../middleware/auth.middleware';
+import { validate } from '../../middleware/validation.middleware';
+import { getOverviewCounts, getBarProductivity, getTrend, getRecentLogs } from './overview.controller';
 
 const router = Router();
 
-// All routes require authentication
-router.use(requireAuth());
+router.get('/counts',
+  authenticateJWT,
+  getOverviewCounts
+);
 
-// Dashboard endpoints
-router.get('/today', validate(todayOverviewSchema), getTodayOverviewHandler);
-router.get('/trends', validate(productivityTrendsSchema), getProductivityTrendsHandler);
-router.get('/details', validate(productivityDetailsSchema), getProductivityDetailsHandler);
-router.get('/seven-day-trend', getSevenDayTrendHandler);
+router.get('/bar-productivity',
+  authenticateJWT,
+  getBarProductivity
+);
+
+router.get('/trend',
+  authenticateJWT,
+  getTrend
+);
+
+router.get('/recent-logs',
+  authenticateJWT,
+  validate(z.object({
+    limit: z.number().int().min(1).max(50).default(10)
+  })),
+  getRecentLogs
+);
 
 export default router; 
