@@ -53,7 +53,7 @@ export const exportReportData = async (req: Request, res: Response, next: NextFu
         // Set appropriate headers based on format
         const contentType = parsedQuery.fileFormat === 'csv' ? 'text/csv' : 'application/pdf';
         const fileExtension = parsedQuery.fileFormat;
-        const fileName = `report-${format(new Date(), 'yyyy-MM-dd')}.${fileExtension}`;
+        const fileName = `report_${format(new Date(), 'yyyy-MM-dd-HH-mm-ss')}.${fileExtension}`;
 
         // Save file to local directory
         const reportsDir = path.join(__dirname, '..', '..', '..', 'public', 'reports');
