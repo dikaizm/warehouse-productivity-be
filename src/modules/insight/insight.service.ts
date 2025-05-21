@@ -1,23 +1,10 @@
 import { PrismaClient } from '@prisma/client';
-import { startOfDay, endOfDay, eachDayOfInterval, format, startOfYear, endOfYear, getWeek, getMonth, getWeekOfMonth } from 'date-fns';
+import { startOfDay, endOfDay, eachDayOfInterval, format, startOfYear, endOfYear, getWeekOfMonth } from 'date-fns';
 import { WorkerPresentResponse, TrendItemResponse, TrendItemDataPoint, WorkerComparisonDataset, TimePointPerformance, WorkerPerformancePoint } from './insight.type';
-import { PRODUCTIVITY } from '../../config/constants';
+import { ROLES } from '../../config/constants';
 import logger from '../../utils/logger';
 import { getTrendData } from '../../utils/trend-cache.util';
 import { parseISO } from 'date-fns';
-
-// Internal type for calculations
-type WorkerPerformanceMetricInternal = {
-  operatorId: number;
-  operatorName: string;
-  productivity: {
-    actual: number;
-    target: number;
-  };
-  workdays: number;
-  totalItems: number;
-  dailyProductivities: number[];
-};
 
 const prisma = new PrismaClient();
 
@@ -41,7 +28,7 @@ export const getWorkerPresent = async (): Promise<WorkerPresentResponse> => {
   const totalWorkers = await prisma.user.count({
     where: {
       role: {
-        name: 'operasional'
+        name: ROLES.OPERASIONAL
       }
     }
   });
@@ -49,7 +36,7 @@ export const getWorkerPresent = async (): Promise<WorkerPresentResponse> => {
   let present = 0;
   let absent = 0;
   for (const log of dailyLog) {
-    const presentCount = log.attendance.filter(a => a.present).length;
+    const presentCount = log.attendance.length;
     const absentCount = totalWorkers - presentCount;
     present += presentCount;
     absent += absentCount;
@@ -155,7 +142,7 @@ export const getWorkerPerformance = async (
   const operationalUsers = await prisma.user.findMany({
     where: {
       role: {
-        name: 'operasional'
+        name: ROLES.OPERASIONAL
       }
     },
     select: {
@@ -184,9 +171,6 @@ export const getWorkerPerformance = async (
     },
     include: {
       attendance: {
-        where: {
-          present: true
-        },
         include: {
           operator: {
             select: {
@@ -204,7 +188,7 @@ export const getWorkerPerformance = async (
 
   // Group logs by time point (week or month)
   const timePointGroups = new Map<string, typeof logs>();
-  
+
   logs.forEach(log => {
     let timePoint: string;
     if (type === 'weekly') {
@@ -214,7 +198,7 @@ export const getWorkerPerformance = async (
     } else {
       timePoint = format(log.logDate, 'MMM');
     }
-    
+
     if (!timePointGroups.has(timePoint)) {
       timePointGroups.set(timePoint, []);
     }
@@ -250,7 +234,10 @@ export const getWorkerPerformance = async (
       // Update metrics for each present operator
       log.attendance.forEach(attendance => {
         const operator = attendance.operator;
-        operatorMetrics.get(operator.id)!.dailyProductivities.push(dailyProductivity);
+        const operatorMetric = operatorMetrics.get(operator.id);
+        if (operatorMetric) {
+          operatorMetric.dailyProductivities.push(dailyProductivity);
+        }
       });
     });
 
@@ -261,9 +248,9 @@ export const getWorkerPerformance = async (
         operatorName: metric.operatorName,
         value: metric.dailyProductivities.length > 0
           ? Math.round(
-              metric.dailyProductivities.reduce((sum, val) => sum + val, 0) / 
-              metric.dailyProductivities.length
-            )
+            metric.dailyProductivities.reduce((sum, val) => sum + val, 0) /
+            metric.dailyProductivities.length
+          )
           : 0 // Zero productivity for operators with no attendance
       }))
       .sort((a, b) => b.value - a.value); // Sort by productivity descending
@@ -279,10 +266,10 @@ export const getWorkerPerformance = async (
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const [aMonth, aWeek] = a.timePoint.split(' ');
     const [bMonth, bWeek] = b.timePoint.split(' ');
-    
+
     const monthDiff = months.indexOf(aMonth) - months.indexOf(bMonth);
     if (monthDiff !== 0) return monthDiff;
-    
+
     if (type === 'weekly') {
       return parseInt(aWeek.slice(1)) - parseInt(bWeek.slice(1));
     }

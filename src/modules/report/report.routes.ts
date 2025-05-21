@@ -11,7 +11,6 @@ const router = Router();
 router.get(
   '/filter',
   authenticateJWT,
-  authorizeRole([ROLES.KEPALA_GUDANG]),
   validate(reportFilterSchema),
   getReportData
 );

@@ -59,6 +59,116 @@ async function main() {
     }),
   ]);
 
+  const subRoles = await Promise.all([
+    prisma.subRole.upsert({
+      where: { name: 'leader_incoming' },
+      create: {
+        name: 'leader_incoming',
+        roleId: roles[2].id,
+      },
+      update: {
+        name: 'leader_incoming',
+        roleId: roles[2].id,
+      },
+    }),
+
+    prisma.subRole.upsert({
+      where: { name: 'good_receive' },
+      create: {
+        name: 'good_receive',
+        roleId: roles[2].id,
+      },
+      update: {
+        name: 'good_receive',
+        roleId: roles[2].id,
+      },
+    }),
+
+    prisma.subRole.upsert({
+      where: { name: 'quality_inspection' },
+      create: {
+        name: 'quality_inspection',
+        roleId: roles[2].id,
+      },
+      update: {
+        name: 'quality_inspection',
+        roleId: roles[2].id,
+      },
+    }),
+
+    prisma.subRole.upsert({
+      where: { name: 'binning' },
+      create: {
+        name: 'binning',
+        roleId: roles[2].id,
+      },
+      update: {
+        name: 'binning',
+        roleId: roles[2].id,
+      },
+    }),
+
+    prisma.subRole.upsert({
+      where: { name: 'leader_outgoing' },
+      create: {
+        name: 'leader_outgoing',
+        roleId: roles[2].id,
+      },
+      update: {
+        name: 'leader_outgoing',
+        roleId: roles[2].id,
+      },
+    }),
+
+    prisma.subRole.upsert({
+      where: { name: 'picking' },
+      create: {
+        name: 'picking',
+        roleId: roles[2].id,
+      },
+      update: {
+        name: 'picking',
+        roleId: roles[2].id,
+      },
+    }),
+
+    prisma.subRole.upsert({
+      where: { name: 'quality_control' },
+      create: {
+        name: 'quality_control',
+        roleId: roles[2].id,
+      },
+      update: {
+        name: 'quality_control',
+        roleId: roles[2].id,
+      },
+    }),
+
+    prisma.subRole.upsert({
+      where: { name: 'kg_none' },
+      create: {
+        name: 'kg_none',
+        roleId: roles[0].id,
+      },
+      update: {
+        name: 'kg_none',
+        roleId: roles[0].id,
+      },
+    }),
+
+    prisma.subRole.upsert({
+      where: { name: 'admin_none' },
+      create: {
+        name: 'admin_none',
+        roleId: roles[1].id,
+      },
+      update: {
+        name: 'admin_none',
+        roleId: roles[1].id,
+      },
+    }),
+  ]);
+
   // Create users with actual person names
   const users = await Promise.all([
     // Kepala Gudang Staff
@@ -74,11 +184,13 @@ async function main() {
         email: 'budi.santoso@example.com',
         passwordHash: await bcrypt.hash('password123', 10),
         fullName: 'Budi Santoso',
-        roleId: roles[0].id // kepala_gudang role
+        roleId: roles[0].id, // kepala_gudang role
+        subRoleId: subRoles[0].id,
       },
       include: {
-        role: true
-      }
+        role: true,
+        subRole: true,
+      },
     }),
     // Admin Logistik Staff
     prisma.user.upsert({
@@ -93,11 +205,13 @@ async function main() {
         email: 'siti.rahma@example.com',
         passwordHash: await bcrypt.hash('password123', 10),
         fullName: 'Siti Rahma',
-        roleId: roles[1].id // admin_logistik role
+        roleId: roles[1].id, // admin_logistik role
+        subRoleId: subRoles[1].id,
       },
       include: {
-        role: true
-      }
+        role: true,
+        subRole: true,
+      },
     }),
     // Operasional Staff
     prisma.user.upsert({
@@ -112,11 +226,13 @@ async function main() {
         email: 'ahmad.yusuf@example.com',
         passwordHash: await bcrypt.hash('password123', 10),
         fullName: 'Ahmad Yusuf',
-        roleId: roles[2].id // operasional role
+        roleId: roles[2].id, // operasional role
+        subRoleId: subRoles[2].id,
       },
       include: {
-        role: true
-      }
+        role: true,
+        subRole: true,
+      },
     }),
   ]);
 
@@ -132,12 +248,12 @@ async function main() {
     Array.from({ length: 30 }, async (_, index) => {
       const date = subDays(today, index);
       const isSunday = date.getDay() === 0; // Only Sunday is non-workday
-      
+
       // Generate realistic productivity data
       // Sunday has lower productivity
       const baseBinning = isSunday ? 50 : 150;
       const basePicking = isSunday ? 30 : 100;
-      
+
       // Add some random variation (±20%)
       const binningCount = Math.floor(baseBinning * (0.8 + Math.random() * 0.4));
       const pickingCount = Math.floor(basePicking * (0.8 + Math.random() * 0.4));
@@ -155,14 +271,11 @@ async function main() {
       });
 
       // Create attendance records for each user
-      // Randomly mark some users as present (90% chance on workdays, 20% on Sunday)
       const attendancePromises = users.map(async (user) => {
-        const isPresent = Math.random() < (isSunday ? 0.2 : 0.9);
         return prisma.attendance.create({
           data: {
             dailyLogId: dailyLog.id,
             operatorId: user.id,
-            present: isPresent
           }
         });
       });
@@ -174,10 +287,11 @@ async function main() {
 
   console.log('Database has been seeded. 🌱');
   console.log('Created roles:', roles);
-  console.log('Created users:', users.map(u => ({ 
+  console.log('Created users:', users.map(u => ({
     fullName: u.fullName,
-    username: u.username, 
-    role: u.role.name
+    username: u.username,
+    role: u.role.name,
+    subRole: u.subRole.name
   })));
   console.log('Created daily logs:', dailyLogs.length);
 }

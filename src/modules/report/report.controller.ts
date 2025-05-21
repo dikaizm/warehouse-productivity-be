@@ -49,18 +49,17 @@ export const exportReportData = async (req: Request, res: Response, next: NextFu
         }
 
         const fileBuffer = await exportReportDataService(parsedQuery);
-
-        // Set appropriate headers based on format
         const contentType = parsedQuery.fileFormat === 'csv' ? 'text/csv' : 'application/pdf';
         const fileExtension = parsedQuery.fileFormat;
         const fileName = `report_${format(new Date(), 'yyyy-MM-dd-HH-mm-ss')}.${fileExtension}`;
 
-        // Save file to local directory
+        // Ensure reports directory exists
         const reportsDir = path.join(__dirname, '..', '..', '..', 'public', 'reports');
         if (!fs.existsSync(reportsDir)) {
             fs.mkdirSync(reportsDir, { recursive: true });
         }
         const filePath = path.join(reportsDir, fileName);
+        // Save file
         fs.writeFileSync(filePath, fileBuffer);
 
         res.setHeader('Content-Type', contentType);

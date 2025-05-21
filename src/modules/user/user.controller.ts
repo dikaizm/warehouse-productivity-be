@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { getUsers, createUser, updateUser, deleteUser } from './user.service';
+import { getUsers, createUser, updateUser, deleteUser, getUserById } from './user.service';
 import { AppError } from '../../utils/error';
 import logger from '../../utils/logger';
 
@@ -19,6 +19,27 @@ export const getUsersController = async (
   } catch (error) {
     logger.error('Error in getUsersController:', error);
     next(error instanceof AppError ? error : new AppError('Failed to get users', 500));
+  }
+};
+
+export const getUserMeController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+    const result = await getUserById(user.id);
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    logger.error('Error in getUserMeController:', error);
+    next(error instanceof AppError ? error : new AppError('Failed to get user me', 500));
   }
 };
 

@@ -9,6 +9,16 @@ export const ROLES = {
   ADMIN_LOGISTIK: 'admin_logistik',
 } as const;
 
+export const SUB_ROLES = {
+  LEADER_INCOMING: 'leader_incoming',
+  GOOD_RECEIVE: 'good_receive',
+  QUALITY_INSPECTION: 'quality_inspection',
+  BINNING: 'binning',
+  LEADER_OUTGOING: 'leader_outgoing',
+  PICKING: 'picking',
+  QUALITY_CONTROL: 'quality_control',
+} as const;
+
 export const ACCESS_LEVEL = {
   EDITOR: 'editor',
   VIEWER: 'viewer'

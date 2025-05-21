@@ -8,19 +8,21 @@ datasource db {
 }
 
 model User {
-  id            Int       @id @default(autoincrement()) @map("id")
-  username      String    @unique @map("username")
-  email         String    @unique @map("email")
-  passwordHash  String    @map("password_hash")
-  fullName      String?   @map("full_name")
-  roleId        Int       @map("role_id")
-  role          Role      @relation(fields: [roleId], references: [id])
-  isActive      Boolean   @default(true) @map("is_active")
-  attendance    Attendance[]
-  reportLogs    ReportLog[]
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt       @map("updated_at")
+  id           Int          @id @default(autoincrement()) @map("id")
+  username     String       @unique @map("username")
+  email        String       @unique @map("email")
+  passwordHash String       @map("password_hash")
+  fullName     String?      @map("full_name")
+  roleId       Int          @map("role_id")
+  role         Role         @relation(fields: [roleId], references: [id])
+  subRoleId    Int          @map("sub_role_id")
+  subRole      SubRole      @relation(fields: [subRoleId], references: [id])
+  isActive     Boolean      @default(true) @map("is_active")
+  attendance   Attendance[]
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
 
+  @@index([roleId])
   @@map("users")
 }
 
@@ -31,49 +33,42 @@ model Role {
   viewAccess  Boolean   @default(true) @map("view_access")
   description String?   @map("description")
   users       User[]
+  SubRole     SubRole[]
 
   @@map("roles")
 }
 
+model SubRole {
+  id     Int    @id @default(autoincrement()) @map("id")
+  name   String @unique @map("name")
+  roleId Int    @map("role_id")
+  role   Role   @relation(fields: [roleId], references: [id])
+  User   User[]
+
+  @@map("sub_roles")
+}
+
 model DailyLog {
-  id            Int       @id @default(autoincrement()) @map("id")
-  logDate       DateTime  @map("log_date")
-  binningCount  Int       @default(0) @map("binning_count")
-  pickingCount  Int       @default(0) @map("picking_count")
-  totalItems    Int?      @map("total_items")
-  issueNotes    String?   @db.Text @map("issue_notes")
-  attendance    Attendance[]
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt       @map("updated_at")
+  id           Int          @id @default(autoincrement()) @map("id")
+  logDate      DateTime     @unique @map("log_date")
+  binningCount Int          @default(0) @map("binning_count")
+  pickingCount Int          @default(0) @map("picking_count")
+  totalItems   Int?         @map("total_items")
+  issueNotes   String?      @map("issue_notes") @db.Text
+  attendance   Attendance[]
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
 
   @@index([logDate])
   @@map("daily_logs")
 }
 
-model ReportLog {
-  id            Int       @id @default(autoincrement()) @map("id")
-  name          String    @map("name")
-  type          String    @map("type") // daily | weekly | monthly
-  fileFormat    String    @map("file_format") // pdf | csv
-  startDate     DateTime  @map("start_date")
-  endDate       DateTime  @map("end_date")
-  userId        Int       @map("user_id")
-  user          User      @relation(fields: [userId], references: [id])
-  filePath      String    @map("file_path")
-  generatedAt   DateTime  @default(now()) @map("generated_at")
-
-  @@index([userId])
-  @@index([generatedAt])
-  @@map("report_logs")
-}
-
 model Attendance {
-  id            Int       @id @default(autoincrement()) @map("id")
-  dailyLog      DailyLog  @relation(fields: [dailyLogId], references: [id])
-  dailyLogId    Int       @map("daily_log_id")
-  operator      User      @relation(fields: [operatorId], references: [id])
-  operatorId    Int       @map("operator_id")
-  present       Boolean   @default(true) @map("present")
+  id         Int      @id @default(autoincrement()) @map("id")
+  dailyLog   DailyLog @relation(fields: [dailyLogId], references: [id])
+  dailyLogId Int      @map("daily_log_id")
+  operator   User     @relation(fields: [operatorId], references: [id])
+  operatorId Int      @map("operator_id")
 
   @@index([operatorId, dailyLogId])
   @@map("attendance")

@@ -40,7 +40,8 @@ export const createDailyLog = async (
       }
     },
     include: {
-      role: true
+      role: true,
+      subRole: true
     }
   });
 
@@ -70,7 +71,6 @@ export const createDailyLog = async (
           data: {
             dailyLogId: log.id,
             operatorId,
-            present: true
           }
         })
       )
@@ -86,7 +86,8 @@ export const createDailyLog = async (
               select: {
                 id: true,
                 username: true,
-                role: true
+                role: true,
+                subRole: true
               }
             }
           }
@@ -103,7 +104,7 @@ export const createDailyLog = async (
 
   // Invalidate relevant cache keys
   const redis = getRedisClient();
-  const cacheKeys = await redis.keys(CACHE_KEYS.DAILY_LOGS);
+  const cacheKeys = await redis.keys('daily_logs*');
   if (cacheKeys.length > 0) {
     await redis.del(cacheKeys);
   }
@@ -122,7 +123,7 @@ export const updateDailyLog = async (
 ) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { role: true },
+    include: { role: true, subRole: true },
   });
 
   if (!user) {
@@ -142,7 +143,8 @@ export const updateDailyLog = async (
           operator: {
             select: {
               id: true,
-              role: true
+              role: true,
+              subRole: true
             }
           }
         }
@@ -207,7 +209,6 @@ export const updateDailyLog = async (
         data: operatorsToAdd.map(operatorId => ({
           dailyLogId: logId,
           operatorId,
-          present: true
         }))
       });
     }
@@ -220,7 +221,7 @@ export const updateDailyLog = async (
           dailyLogId: logId,
           operatorId: { in: operatorsToUpdate }
         },
-        data: { present: true }
+        data: { }
       });
     }
 
@@ -255,7 +256,7 @@ export const updateDailyLog = async (
 
   // Invalidate relevant cache keys
   const redis = getRedisClient();
-  const cacheKeys = await redis.keys(CACHE_KEYS.DAILY_LOGS);
+  const cacheKeys = await redis.keys('daily_logs*');
   if (cacheKeys.length > 0) {
     await redis.del(cacheKeys);
   }
@@ -277,7 +278,8 @@ const calculateProductivity = (log: any): DailyLog => {
     attendance: log.attendance.map((a: any) => ({
       operatorId: a.operatorId,
       operatorName: a.operator.fullName,
-      operatorRole: a.operator.role.name
+      operatorRole: a.operator.role.name,
+      operatorSubRole: a.operator.subRole.name
     })),
     productivity: {
       actual: productivity,
@@ -359,7 +361,7 @@ export const getDailyLogs = async (
       if (sortBy) {
         processedLogs.sort((a: DailyLog, b: DailyLog) => {
           let aVal: number, bVal: number;
-          
+
           switch (sortBy) {
             case 'logDate':
               aVal = new Date(a.logDate).getTime();
@@ -377,7 +379,7 @@ export const getDailyLogs = async (
               aVal = Number(a[sortBy as keyof DailyLog] || 0);
               bVal = Number(b[sortBy as keyof DailyLog] || 0);
           }
-          
+
           return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
         });
       }
@@ -429,6 +431,11 @@ export const getDailyLogs = async (
                   fullName: true,
                   email: true,
                   role: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                  subRole: {
                     select: {
                       name: true,
                     },
@@ -520,6 +527,11 @@ export const getDailyLogs = async (
                       name: true,
                     },
                   },
+                  subRole: {
+                    select: {
+                      name: true,
+                    },
+                  },
                 },
               },
             },
@@ -573,6 +585,11 @@ export const getDailyLogById = async (id: number) => {
                   name: true,
                 },
               },
+              subRole: {
+                select: {
+                  name: true,
+                },
+              },
             },
           },
         },
@@ -597,7 +614,8 @@ export const getDailyLogById = async (id: number) => {
     attendance: log.attendance.map((a: any) => ({
       operatorId: a.operatorId,
       operatorName: a.operator.fullName,
-      operatorRole: a.operator.role.name
+      operatorRole: a.operator.role.name,
+      operatorSubRole: a.operator.subRole.name
     })),
     workNotes: log.issueNotes || '',
     createdAt: log.createdAt,
@@ -652,9 +670,9 @@ export const deleteDailyLog = async (id: number, userId: number) => {
     prisma.dailyLog.delete({ where: { id } }),
   ]);
 
-  // Invalidate relevant cache keys
+  // Invalidate all daily logs cache
   const redis = getRedisClient();
-  const cacheKeys = await redis.keys(CACHE_KEYS.DAILY_LOGS);
+  const cacheKeys = await redis.keys('daily_logs*');
   if (cacheKeys.length > 0) {
     await redis.del(cacheKeys);
   }
@@ -723,6 +741,11 @@ export const getUserDailyLogs = async (
                     name: true,
                   },
                 },
+                subRole: {
+                  select: {
+                    name: true,
+                  },
+                },
               },
             },
           },
@@ -784,7 +807,7 @@ export const getDailyLogStats = async (startDate: Date, endDate: Date, userId: n
   });
 
   const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-  const presentDays = logs.filter(log => log.attendance[0]?.present).length;
+  const presentDays = logs.filter(log => log.attendance[0]).length;
   const totalBinning = logs.reduce((sum, log) => sum + (log.binningCount || 0), 0);
   const totalPicking = logs.reduce((sum, log) => sum + (log.pickingCount || 0), 0);
   const totalItems = totalBinning + totalPicking;

@@ -20,9 +20,6 @@ export class OverviewService {
       },
       include: {
         attendance: {
-          where: {
-            present: true
-          },
           include: {
             operator: {
               select: {
@@ -64,9 +61,6 @@ export class OverviewService {
         binningCount: true,
         pickingCount: true,
         attendance: {
-          where: {
-            present: true
-          },
           select: {
             operatorId: true
           }
@@ -96,7 +90,7 @@ export class OverviewService {
     });
 
     const filledData = allDays.map(date => {
-      const existingData = productivityData.find(d => 
+      const existingData = productivityData.find(d =>
         d.date.getTime() === date.getTime()
       );
       return existingData || { date, count: 0 };
@@ -118,9 +112,6 @@ export class OverviewService {
         pickingCount: true,
         logDate: true,
         attendance: {
-          where: {
-            present: true
-          },
           select: {
             operatorId: true
           }
@@ -143,7 +134,7 @@ export class OverviewService {
     logs.forEach(log => {
       const weekStart = startOfWeek(log.logDate);
       const weekKey = weekStart.toISOString();
-      
+
       const group = weeklyGroups.get(weekKey) || { items: 0, operators: 0, count: 0 };
       group.items += (log.binningCount || 0) + (log.pickingCount || 0);
       group.operators += log.attendance.length;
@@ -162,7 +153,7 @@ export class OverviewService {
     logs.forEach(log => {
       const monthStart = startOfMonth(log.logDate);
       const monthKey = monthStart.toISOString();
-      
+
       const group = monthlyGroups.get(monthKey) || { items: 0, operators: 0, count: 0 };
       group.items += (log.binningCount || 0) + (log.pickingCount || 0);
       group.operators += log.attendance.length;
@@ -207,9 +198,6 @@ export class OverviewService {
       },
       include: {
         attendance: {
-          where: {
-            present: true
-          },
           include: {
             operator: {
               select: {

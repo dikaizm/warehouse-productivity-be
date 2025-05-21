@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
-import { CreateUserRequest, UpdateUserRequest, UserResponse, RoleName } from './user.type';
+import { CreateUserRequest, UpdateUserRequest, UserResponse, RoleName, SubRoleName } from './user.type';
 import { AppError } from '../../utils/error';
 import logger from '../../utils/logger';
 
@@ -16,7 +16,8 @@ export const getUsers = async (role: string): Promise<UserResponse[]> => {
       }
     } : {}),
     include: {
-      role: true
+      role: true,
+      subRole: true
     },
     orderBy: {
       fullName: 'asc'
@@ -29,15 +30,53 @@ export const getUsers = async (role: string): Promise<UserResponse[]> => {
     username: user.username,
     email: user.email,
     role: {
-        id: user.role.id,
-        name: user.role.name as RoleName,
-        editAccess: user.role.editAccess,
-        viewAccess: user.role.viewAccess,
-        description: user.role.description
-      },
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt
-    }));
+      id: user.role.id,
+      name: user.role.name as RoleName,
+      editAccess: user.role.editAccess,
+      viewAccess: user.role.viewAccess,
+      description: user.role.description
+    },
+    subRole: {
+      id: user.subRoleId,
+      name: user.subRole.name as SubRoleName,
+    },
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  }));
+};
+
+export const getUserById = async (id: number): Promise<UserResponse> => {
+  const user = await prisma.user.findUnique({
+    where: { id },
+    include: {
+      role: true,
+      subRole: true
+    }
+  });
+
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+
+  return {
+    id: user.id,
+    fullName: user.fullName || '',
+    username: user.username,
+    email: user.email,
+    role: {
+      id: user.role.id,
+      name: user.role.name as RoleName,
+      editAccess: user.role.editAccess,
+      viewAccess: user.role.viewAccess,
+      description: user.role.description
+    },
+    subRole: {
+      id: user.subRoleId,
+      name: user.subRole.name as SubRoleName,
+    },
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt
+  };
 };
 
 export const createUser = async (data: CreateUserRequest): Promise<UserResponse> => {
@@ -66,8 +105,17 @@ export const createUser = async (data: CreateUserRequest): Promise<UserResponse>
     where: { name: data.role }
   });
 
+  // Get sub role
+  const subRole = await prisma.subRole.findUnique({
+    where: { name: data.subRole }
+  });
+
   if (!role) {
     throw new AppError('Invalid role', 400);
+  }
+
+  if (!subRole) {
+    throw new AppError('Invalid sub role', 400);
   }
 
   // Create user
@@ -77,10 +125,12 @@ export const createUser = async (data: CreateUserRequest): Promise<UserResponse>
       username: data.username,
       email: data.email,
       passwordHash: hashedPassword,
-      roleId: role.id
+      roleId: role.id,
+      subRoleId: subRole.id
     },
     include: {
       role: true,
+      subRole: true
     }
   });
 
@@ -96,6 +146,10 @@ export const createUser = async (data: CreateUserRequest): Promise<UserResponse>
       viewAccess: user.role.viewAccess,
       description: user.role.description
     },
+    subRole: {
+      id: user.subRoleId,
+      name: user.subRole.name as SubRoleName,
+    },
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   };
@@ -106,7 +160,8 @@ export const updateUser = async (id: number, data: UpdateUserRequest): Promise<U
   const existingUser = await prisma.user.findUnique({
     where: { id },
     include: {
-      role: true
+      role: true,
+      subRole: true
     }
   });
 
@@ -168,7 +223,8 @@ export const updateUser = async (id: number, data: UpdateUserRequest): Promise<U
       roleId
     },
     include: {
-      role: true
+      role: true,
+      subRole: true
     }
   });
 
@@ -183,6 +239,10 @@ export const updateUser = async (id: number, data: UpdateUserRequest): Promise<U
       editAccess: updatedUser.role.editAccess,
       viewAccess: updatedUser.role.viewAccess,
       description: updatedUser.role.description
+    },
+    subRole: {
+      id: updatedUser.subRoleId,
+      name: updatedUser.subRole.name as SubRoleName,
     },
     createdAt: updatedUser.createdAt,
     updatedAt: updatedUser.updatedAt

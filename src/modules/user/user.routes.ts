@@ -6,7 +6,8 @@ import {
   getUsersController,
   createUserController,
   updateUserController,
-  deleteUserController
+  deleteUserController,
+  getUserMeController
 } from './user.controller';
 import { createUserSchema, updateUserSchema } from './user.schema';
 
@@ -21,6 +22,12 @@ router.get(
   '/',
   authorizeRole([ROLES.KEPALA_GUDANG]),
   getUsersController
+);
+
+router.get(
+  '/me',
+  authenticateJWT,
+  getUserMeController
 );
 
 // Create new user

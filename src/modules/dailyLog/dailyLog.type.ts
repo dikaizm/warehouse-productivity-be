@@ -13,6 +13,7 @@ export type DailyLog = {
     operatorId: number;
     operatorName: string;
     operatorRole: string;
+    operatorSubRole: string;
   }[];
 };
 
@@ -38,6 +39,7 @@ export type DailyLogDetail = {
     operatorId: number;
     operatorName: string;
     operatorRole: string;
+    operatorSubRole: string;
   }[];
   workNotes: string;
   createdAt: Date;

@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { TopPerformer } from './topPerformer.type';
-import { PRODUCTIVITY } from '../../config/constants';
+import { PRODUCTIVITY, ROLES } from '../../config/constants';
 import logger from '../../utils/logger';
 import { startOfMonth, endOfMonth, eachMonthOfInterval, format } from 'date-fns';
 
@@ -12,7 +12,7 @@ export const getTopPerformers = async (search: string): Promise<TopPerformer[]> 
     const operationalUsers = await prisma.user.findMany({
       where: {
         role: {
-          name: 'operasional'
+          name: ROLES.OPERASIONAL
         },
         ...(search && {
           OR: [
@@ -47,7 +47,6 @@ export const getTopPerformers = async (search: string): Promise<TopPerformer[]> 
       include: {
         attendance: {
           where: {
-            present: true,
             operatorId: {
               in: Array.from(operatorMetrics.keys())
             }

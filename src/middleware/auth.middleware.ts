@@ -4,11 +4,13 @@ import { PrismaClient } from '@prisma/client';
 import env from '../config/env';
 import logger from '../utils/logger';
 import { AppError } from '../middleware/error.middleware';
+import { RoleName } from '@/modules/user/user.type';
 
 const prisma = new PrismaClient();
 
 interface UserJwt {
   id: number;
+  fullName: string;
   username: string;
   role: string;
 }
@@ -54,8 +56,9 @@ export const authenticateJWT = async (
       // Set req.user with required properties
       req.user = {
         id: user.id,
+        fullName: user.fullName || '',
         username: user.username,
-        role: user.role.name
+        role: user.role.name as RoleName
       };
       
       next();
@@ -78,11 +81,11 @@ export const authorizeRole = (allowedRoles: string[] | 'edit' | 'view') => {
       }
 
       const role = await prisma.role.findFirst({
-        where: { name: req.user.role }
+        where: { name: req.user.role as RoleName }
       });
 
       if (!role) {
-        logger.warn('Authorization failed: Role not found', { role: req.user.role });
+        logger.warn('Authorization failed: Role not found', { role: req.user.role as RoleName });
         throw new AppError(403, 'Role not found');
       }
 
@@ -92,7 +95,7 @@ export const authorizeRole = (allowedRoles: string[] | 'edit' | 'view') => {
         // For now, just check if the role is 'editor'
         if (role.name !== 'editor') {
           logger.warn('Authorization failed: Insufficient permissions for edit access', { 
-            userRole: role.name,
+            userRole: role.name as RoleName,
             requiredAccess: 'edit'
           });
           throw new AppError(403, 'Insufficient permissions for edit access');
@@ -105,7 +108,7 @@ export const authorizeRole = (allowedRoles: string[] | 'edit' | 'view') => {
         // Handle legacy array of roles check
         if (!allowedRoles.includes(role.name)) {
           logger.warn('Authorization failed: Insufficient permissions', { 
-            userRole: role.name,
+            userRole: role.name as RoleName,
             allowedRoles
           });
           throw new AppError(403, 'Insufficient permissions');
