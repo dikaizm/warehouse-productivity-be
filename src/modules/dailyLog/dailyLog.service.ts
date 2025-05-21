@@ -1,12 +1,16 @@
 import { PrismaClient } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
+import { DailyLog, DailyLogDetail, DailyLogResult } from './dailyLog.type';
+import { getRedisClient, CACHE_KEYS, CACHE_TTL } from '../../config/redis';
+import { PRODUCTIVITY, ROLES } from '../../config/constants';
+import logger from '../../utils/logger';
 
 const prisma = new PrismaClient();
 
 export const createDailyLog = async (
-  userId: number,
   logDate: Date,
-  isPresent: boolean,
+  workerPresentIds: number[],
+  workNotes?: string,
   binningCount?: number,
   pickingCount?: number
 ) => {
@@ -15,51 +19,66 @@ export const createDailyLog = async (
     throw new AppError(400, 'Cannot create log for future dates');
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { role: true },
-  });
-
-  if (!user) {
-    throw new AppError(404, 'User not found');
-  }
-
-  // Allow both operators and editors to create daily logs
-  if (user.role.name !== 'operator' && user.role.name !== 'editor') {
-    throw new AppError(403, 'Only operators and editors can create daily logs');
-  }
-
   // Check if log already exists for this date
   const existingLog = await prisma.dailyLog.findUnique({
     where: { logDate },
     include: {
-      attendance: {
-        where: { operatorId: userId }
-      }
+      attendance: true
     }
   });
 
-  if (existingLog?.attendance.length) {
+  if (existingLog) {
     throw new AppError(409, 'Daily log already exists for this date');
+  }
+
+  // Verify all workers exist and have appropriate roles
+  const workers = await prisma.user.findMany({
+    where: {
+      id: { in: workerPresentIds },
+      role: {
+        name: { in: [ROLES.OPERASIONAL] }
+      }
+    },
+    include: {
+      role: true
+    }
+  });
+
+  if (workers.length !== workerPresentIds.length) {
+    throw new AppError(400, 'One or more workers not found or do not have appropriate roles');
   }
 
   const totalItems = (binningCount || 0) + (pickingCount || 0);
 
-  // Create daily log and attendance in a transaction
+  // Create daily log and attendance records in a transaction
   const dailyLog = await prisma.$transaction(async (tx) => {
+    // Create the daily log first
     const log = await tx.dailyLog.create({
       data: {
         logDate,
         binningCount: binningCount || 0,
         pickingCount: pickingCount || 0,
         totalItems,
-        attendance: {
-          create: {
-            operatorId: userId,
-            present: isPresent
+        issueNotes: workNotes
+      }
+    });
+
+    // Create attendance records for all present workers
+    await Promise.all(
+      workerPresentIds.map(operatorId =>
+        tx.attendance.create({
+          data: {
+            dailyLogId: log.id,
+            operatorId,
+            present: true
           }
-        }
-      },
+        })
+      )
+    );
+
+    // Fetch the complete log with attendance and operator details
+    const completeLog = await tx.dailyLog.findUnique({
+      where: { id: log.id },
       include: {
         attendance: {
           include: {
@@ -75,8 +94,20 @@ export const createDailyLog = async (
       }
     });
 
-    return log;
+    if (!completeLog) {
+      throw new AppError(500, 'Failed to create daily log');
+    }
+
+    return completeLog;
   });
+
+  // Invalidate relevant cache keys
+  const redis = getRedisClient();
+  const cacheKeys = await redis.keys(CACHE_KEYS.DAILY_LOGS);
+  if (cacheKeys.length > 0) {
+    await redis.del(cacheKeys);
+  }
+  logger.info('Cache invalidated after daily log creation', { id: dailyLog.id, cacheKeysCount: cacheKeys.length });
 
   return dailyLog;
 };
@@ -84,9 +115,10 @@ export const createDailyLog = async (
 export const updateDailyLog = async (
   logId: number,
   userId: number,
-  isPresent: boolean,
-  binningCount?: number,
-  pickingCount?: number
+  binningCount: number,
+  pickingCount: number,
+  workerPresentIds: number[],
+  workNotes?: string
 ) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -97,16 +129,15 @@ export const updateDailyLog = async (
     throw new AppError(404, 'User not found');
   }
 
-  // Allow both operators and editors to update daily logs
-  if (user.role.name !== 'operator' && user.role.name !== 'editor') {
-    throw new AppError(403, 'Only operators and editors can update daily logs');
+  // Allow only kepala gudang to update daily logs
+  if (user.role.name !== ROLES.KEPALA_GUDANG) {
+    throw new AppError(403, 'Only kepala gudang can update daily logs');
   }
 
   const existingLog = await prisma.dailyLog.findUnique({
     where: { id: logId },
     include: {
       attendance: {
-        where: { operatorId: userId },
         include: {
           operator: {
             select: {
@@ -123,101 +154,79 @@ export const updateDailyLog = async (
     throw new AppError(404, 'Daily log not found');
   }
 
-  // Only allow update by the log owner or editor
-  const userAttendance = existingLog.attendance[0];
-  if (!userAttendance && user.role.name !== 'editor') {
-    throw new AppError(403, 'Not authorized to update this log');
+  // Verify all workers exist and have appropriate roles
+  const workers = await prisma.user.findMany({
+    where: {
+      id: { in: workerPresentIds },
+      role: { name: ROLES.OPERASIONAL }
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (workers.length !== workerPresentIds.length) {
+    throw new AppError(400, 'One or more workers not found or do not have appropriate roles');
   }
 
-  const totalItems = (binningCount || 0) + (pickingCount || 0);
+  const totalItems = binningCount + pickingCount;
 
   // Update daily log and attendance in a transaction
   const dailyLog = await prisma.$transaction(async (tx) => {
-    // Update or create attendance
-    if (userAttendance) {
-      await tx.attendance.update({
-        where: { id: userAttendance.id },
-        data: { present: isPresent }
-      });
-    } else {
-      await tx.attendance.create({
-        data: {
+    // Update daily log
+    await tx.dailyLog.update({
+      where: { id: logId },
+      data: {
+        binningCount,
+        pickingCount,
+        totalItems,
+        issueNotes: workNotes
+      }
+    });
+
+    // Get current attendance records
+    const currentAttendance = existingLog.attendance;
+    const currentOperatorIds = currentAttendance.map(a => a.operatorId);
+    const newOperatorIds = workerPresentIds;
+
+    // Delete attendance for operators no longer present
+    const operatorsToRemove = currentOperatorIds.filter(id => !newOperatorIds.includes(id));
+    if (operatorsToRemove.length > 0) {
+      await tx.attendance.deleteMany({
+        where: {
           dailyLogId: logId,
-          operatorId: userId,
-          present: isPresent
+          operatorId: { in: operatorsToRemove }
         }
       });
     }
 
-    // Update daily log
-    const log = await tx.dailyLog.update({
+    // Create attendance for new operators
+    const operatorsToAdd = newOperatorIds.filter(id => !currentOperatorIds.includes(id));
+    if (operatorsToAdd.length > 0) {
+      await tx.attendance.createMany({
+        data: operatorsToAdd.map(operatorId => ({
+          dailyLogId: logId,
+          operatorId,
+          present: true
+        }))
+      });
+    }
+
+    // Update existing attendance records
+    const operatorsToUpdate = newOperatorIds.filter(id => currentOperatorIds.includes(id));
+    if (operatorsToUpdate.length > 0) {
+      await tx.attendance.updateMany({
+        where: {
+          dailyLogId: logId,
+          operatorId: { in: operatorsToUpdate }
+        },
+        data: { present: true }
+      });
+    }
+
+    // Fetch the complete updated log
+    const completeLog = await tx.dailyLog.findUnique({
       where: { id: logId },
-      data: {
-        binningCount: binningCount || 0,
-        pickingCount: pickingCount || 0,
-        totalItems
-      },
-      include: {
-        attendance: {
-          include: {
-            operator: {
-              select: {
-                id: true,
-                username: true,
-                role: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    return log;
-  });
-
-  return dailyLog;
-};
-
-export const getDailyLogs = async (
-  page: number,
-  limit: number,
-  startDate?: Date,
-  endDate?: Date,
-  userId?: number
-) => {
-  // Validate date range
-  if (startDate && endDate && startDate > endDate) {
-    throw new AppError(400, 'startDate must be before or equal to endDate');
-  }
-
-  // Validate pagination
-  if (page < 1) {
-    throw new AppError(400, 'page must be at least 1');
-  }
-  if (limit < 1 || limit > 100) {
-    throw new AppError(400, 'limit must be between 1 and 100');
-  }
-
-  const where = {
-    ...(startDate && endDate && {
-      logDate: {
-        gte: startDate,
-        lte: endDate,
-      },
-    }),
-    ...(userId && {
-      attendance: {
-        some: {
-          operatorId: userId
-        }
-      }
-    }),
-  };
-
-  const [total, logs] = await Promise.all([
-    prisma.dailyLog.count({ where }),
-    prisma.dailyLog.findMany({
-      where,
       include: {
         attendance: {
           include: {
@@ -225,30 +234,323 @@ export const getDailyLogs = async (
               select: {
                 id: true,
                 fullName: true,
-                email: true,
                 role: {
                   select: {
-                    name: true,
+                    name: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!completeLog) {
+      throw new AppError(500, 'Failed to update daily log');
+    }
+
+    return completeLog;
+  });
+
+  // Invalidate relevant cache keys
+  const redis = getRedisClient();
+  const cacheKeys = await redis.keys(CACHE_KEYS.DAILY_LOGS);
+  if (cacheKeys.length > 0) {
+    await redis.del(cacheKeys);
+  }
+  logger.info('Cache invalidated after daily log update', { id: logId, cacheKeysCount: cacheKeys.length });
+
+  return dailyLog;
+};
+
+// Helper function to calculate productivity
+const calculateProductivity = (log: any): DailyLog => {
+  const totalItems = log.totalItems || 0;
+  const productivity = totalItems ? Math.round(totalItems / log.attendance.length) : 0;
+  return {
+    id: log.id,
+    logDate: log.logDate,
+    binningCount: log.binningCount,
+    pickingCount: log.pickingCount,
+    totalItems,
+    attendance: log.attendance.map((a: any) => ({
+      operatorId: a.operatorId,
+      operatorName: a.operator.fullName,
+      operatorRole: a.operator.role.name
+    })),
+    productivity: {
+      actual: productivity,
+      target: PRODUCTIVITY.TARGET
+    }
+  };
+};
+
+// Helper function to get cache key
+const getCacheKey = (
+  sortBy?: string,
+  sortOrder?: string,
+  startDate?: Date,
+  endDate?: Date,
+  search?: string
+) => {
+  if (search) {
+    return CACHE_KEYS.DAILY_LOGS_SEARCH(search);
+  }
+  if (startDate || endDate) {
+    return CACHE_KEYS.DAILY_LOGS_PERIOD(
+      startDate?.toISOString() || '',
+      endDate?.toISOString() || '',
+    );
+  }
+  if (sortBy) {
+    return CACHE_KEYS.DAILY_LOGS_SORTED(sortBy, sortOrder || 'desc');
+  }
+  return CACHE_KEYS.DAILY_LOGS;
+};
+
+export const getDailyLogs = async (
+  page: number,
+  limit: number,
+  startDate?: Date,
+  endDate?: Date,
+  operatorName?: string,
+  sortBy?: 'logDate' | 'binningCount' | 'pickingCount' | 'totalItems' | 'productivity' | 'attendanceCount',
+  sortOrder: 'asc' | 'desc' = 'desc'
+) => {
+  // Validate parameters
+  if (startDate && endDate && startDate > endDate) {
+    throw new AppError(400, 'startDate must be before or equal to endDate');
+  }
+  if (page < 1) {
+    throw new AppError(400, 'page must be at least 1');
+  }
+  if (limit < 1 || limit > 100) {
+    throw new AppError(400, 'limit must be between 1 and 100');
+  }
+  if (sortBy && !['logDate', 'binningCount', 'pickingCount', 'totalItems', 'productivity', 'attendanceCount'].includes(sortBy)) {
+    throw new AppError(400, 'Invalid sort field');
+  }
+  if (sortOrder && !['asc', 'desc'].includes(sortOrder)) {
+    throw new AppError(400, 'Sort order must be either asc or desc');
+  }
+
+  logger.info('sortBy', { sortBy });
+  logger.info('sortOrder', { sortOrder });
+  logger.info('startDate', { startDate });
+  logger.info('endDate', { endDate });
+  logger.info('operatorName', { operatorName });
+
+  const redis = getRedisClient();
+  const cacheKey = getCacheKey(sortBy, sortOrder, startDate, endDate, operatorName);
+
+  logger.info('cacheKey', { cacheKey });
+
+  try {
+    // Try to get from cache first
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+      logger.info('Using cached data');
+
+      const parsedData = JSON.parse(cachedData);
+      let processedLogs = parsedData.logs;
+
+      if (sortBy) {
+        processedLogs.sort((a: DailyLog, b: DailyLog) => {
+          let aVal: number, bVal: number;
+          
+          switch (sortBy) {
+            case 'logDate':
+              aVal = new Date(a.logDate).getTime();
+              bVal = new Date(b.logDate).getTime();
+              break;
+            case 'attendanceCount':
+              aVal = a.attendance.length;
+              bVal = b.attendance.length;
+              break;
+            case 'productivity':
+              aVal = a.productivity.actual;
+              bVal = b.productivity.actual;
+              break;
+            default:
+              aVal = Number(a[sortBy as keyof DailyLog] || 0);
+              bVal = Number(b[sortBy as keyof DailyLog] || 0);
+          }
+          
+          return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+      }
+
+      const start = (page - 1) * limit;
+      const end = start + limit;
+      return {
+        logs: processedLogs.slice(start, end),
+        total: parsedData.total,
+        page,
+        limit,
+        totalPages: Math.ceil(parsedData.total / limit)
+      };
+    }
+
+    logger.info('Fetching data from database');
+    // If not in cache, get from database
+    const where = {
+      ...(startDate && endDate && {
+        logDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      }),
+      ...(operatorName && {
+        attendance: {
+          some: {
+            operator: {
+              fullName: {
+                contains: operatorName
+              }
+            }
+          }
+        }
+      }),
+    };
+
+    // For productivity sorting, we need to calculate it after fetching the data
+    const [total, logs] = await Promise.all([
+      prisma.dailyLog.count({ where }),
+      prisma.dailyLog.findMany({
+        where,
+        include: {
+          attendance: {
+            include: {
+              operator: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  email: true,
+                  role: {
+                    select: {
+                      name: true,
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-      skip: (page - 1) * limit,
-      take: limit,
-      orderBy: { logDate: 'desc' },
-    }),
-  ]);
+        // Only apply database sorting for non-productivity fields
+        orderBy: sortBy && sortBy !== 'productivity' && sortBy !== 'attendanceCount'
+          ? { [sortBy]: sortOrder }
+          : { logDate: 'desc' },
+      }),
+    ]);
 
-  return {
-    logs,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  };
+    // Process logs and calculate productivity
+    let processedLogs = logs.map(calculateProductivity);
+
+    // Sort by productivity if needed
+    if (sortBy === 'productivity') {
+      processedLogs.sort((a: DailyLog, b: DailyLog) =>
+        sortOrder === 'asc'
+          ? a.productivity.actual - b.productivity.actual
+          : b.productivity.actual - a.productivity.actual
+      );
+    }
+
+    if (sortBy === 'attendanceCount') {
+      processedLogs.sort((a: DailyLog, b: DailyLog) =>
+        sortOrder === 'asc'
+          ? a.attendance.length - b.attendance.length
+          : b.attendance.length - a.attendance.length
+      );
+    }
+
+    // Cache the full result set
+    const cacheData = {
+      logs: processedLogs,
+      total
+    };
+    await redis.setex(cacheKey, CACHE_TTL.DAILY_LOGS, JSON.stringify(cacheData));
+
+    // Return paginated results
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    return {
+      logs: processedLogs.slice(start, end),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
+  } catch (error) {
+    console.error('Error in getDailyLogs:', error);
+    // Fallback to database query if Redis fails
+    const where = {
+      ...(startDate && endDate && {
+        logDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      }),
+      ...(operatorName && {
+        attendance: {
+          some: {
+            operator: {
+              fullName: operatorName
+            }
+          }
+        }
+      }),
+    };
+
+    const [total, logs] = await Promise.all([
+      prisma.dailyLog.count({ where }),
+      prisma.dailyLog.findMany({
+        where,
+        include: {
+          attendance: {
+            include: {
+              operator: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  email: true,
+                  role: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        // Only apply database sorting for non-productivity fields
+        orderBy: sortBy && sortBy !== 'productivity'
+          ? { [sortBy]: sortOrder }
+          : { logDate: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    const processedLogs = logs.map(calculateProductivity);
+    if (sortBy === 'productivity') {
+      processedLogs.sort((a: DailyLog, b: DailyLog) =>
+        sortOrder === 'asc'
+          ? a.productivity.actual - b.productivity.actual
+          : b.productivity.actual - a.productivity.actual
+      );
+    }
+
+    return {
+      logs: processedLogs,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
 };
 
 export const getDailyLogById = async (id: number) => {
@@ -282,7 +584,27 @@ export const getDailyLogById = async (id: number) => {
     throw new AppError(404, 'Daily log not found');
   }
 
-  return log;
+  const dailyLogDetail: DailyLogDetail = {
+    id: log.id,
+    logDate: log.logDate,
+    binningCount: log.binningCount,
+    pickingCount: log.pickingCount,
+    totalItems: log.totalItems || 0,
+    productivity: {
+      actual: log.totalItems ? log.totalItems / log.attendance.length : 0,
+      target: PRODUCTIVITY.TARGET
+    },
+    attendance: log.attendance.map((a: any) => ({
+      operatorId: a.operatorId,
+      operatorName: a.operator.fullName,
+      operatorRole: a.operator.role.name
+    })),
+    workNotes: log.issueNotes || '',
+    createdAt: log.createdAt,
+    updatedAt: log.updatedAt
+  }
+
+  return dailyLogDetail;
 };
 
 export const deleteDailyLog = async (id: number, userId: number) => {
@@ -321,11 +643,22 @@ export const deleteDailyLog = async (id: number, userId: number) => {
   }
 
   const userAttendance = log.attendance[0];
-  if (!userAttendance && user.role.name !== 'admin') {
+  if (!userAttendance && user.role.name !== ROLES.KEPALA_GUDANG) {
     throw new AppError(403, 'Not authorized to delete this log');
   }
 
-  await prisma.dailyLog.delete({ where: { id } });
+  await prisma.$transaction([
+    prisma.attendance.deleteMany({ where: { dailyLogId: id } }),
+    prisma.dailyLog.delete({ where: { id } }),
+  ]);
+
+  // Invalidate relevant cache keys
+  const redis = getRedisClient();
+  const cacheKeys = await redis.keys(CACHE_KEYS.DAILY_LOGS);
+  if (cacheKeys.length > 0) {
+    await redis.del(cacheKeys);
+  }
+  logger.info('Cache invalidated after daily log deletion', { id, cacheKeysCount: cacheKeys.length });
 
   return { message: 'Daily log deleted successfully' };
 };

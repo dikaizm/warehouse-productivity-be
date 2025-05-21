@@ -37,7 +37,7 @@ model Role {
 
 model DailyLog {
   id            Int       @id @default(autoincrement()) @map("id")
-  logDate       DateTime  @unique @map("log_date")
+  logDate       DateTime  @map("log_date")
   binningCount  Int       @default(0) @map("binning_count")
   pickingCount  Int       @default(0) @map("picking_count")
   totalItems    Int?      @map("total_items")

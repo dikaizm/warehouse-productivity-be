@@ -9,20 +9,39 @@ import {
   getDailyLogStats,
 } from './dailyLog.service';
 import { AppError } from '../../middleware/error.middleware';
+import { PrismaClient } from '@prisma/client';
+import { ROLES } from '../../config/constants';
+
+const prisma = new PrismaClient();
 
 export const createDailyLogController = async (req: Request, res: Response) => {
   try {
-    const { logDate, isPresent, binningCount, pickingCount } = req.body;
+    const { logDate, workerPresents, workNotes, binningCount, pickingCount } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
       throw new AppError(401, 'Unauthorized');
     }
 
+    // Verify user has permission to create logs
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true }
+    });
+
+    if (!user) {
+      throw new AppError(404, 'User not found');
+    }
+
+    // Only editors can create logs for multiple workers
+    if (workerPresents.length > 1 && user.role.name !== ROLES.KEPALA_GUDANG) {
+      throw new AppError(403, 'Only editors can create logs for multiple workers');
+    }
+
     const dailyLog = await createDailyLog(
-      userId,
       new Date(logDate),
-      isPresent,
+      workerPresents,
+      workNotes,
       binningCount,
       pickingCount
     );
@@ -39,6 +58,7 @@ export const createDailyLogController = async (req: Request, res: Response) => {
         message: error.message
       });
     } else {
+      console.error('Create daily log error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error'
@@ -50,7 +70,7 @@ export const createDailyLogController = async (req: Request, res: Response) => {
 export const updateDailyLogController = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { isPresent, binningCount, pickingCount } = req.body;
+    const { binningCount, pickingCount, workerPresents, workNotes } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
@@ -65,9 +85,10 @@ export const updateDailyLogController = async (req: Request, res: Response) => {
     const dailyLog = await updateDailyLog(
       logId,
       userId,
-      isPresent,
       binningCount,
-      pickingCount
+      pickingCount,
+      workerPresents,
+      workNotes
     );
 
     res.status(200).json({
@@ -91,48 +112,22 @@ export const updateDailyLogController = async (req: Request, res: Response) => {
 };
 
 export const getDailyLogsController = async (req: Request, res: Response) => {
-  try {
-    const page = req.query.page ? parseInt(req.query.page as string) : 1;
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
-    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
-    const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
-    const userId = req.query.userId ? Number(req.query.userId) : undefined;
+  const { page = 1, limit = 10, startDate, endDate, search, sort, direction } = req.query;
 
-    // Validate pagination parameters
-    if (isNaN(page) || page < 1 || isNaN(limit) || limit < 1) {
-      throw new AppError(400, 'Invalid pagination parameters');
-    }
+  const logs = await getDailyLogs(
+    Number(page),
+    Number(limit),
+    startDate ? new Date(startDate as string) : undefined,
+    endDate ? new Date(endDate as string) : undefined,
+    search as string,
+    sort as 'logDate' | 'attendanceCount' | 'binningCount' | 'pickingCount' | 'totalItems' | 'productivity' | undefined,
+    direction as 'asc' | 'desc' | undefined
+  );
 
-    // Validate date range if provided
-    if ((startDate && !endDate) || (!startDate && endDate)) {
-      throw new AppError(400, 'Both startDate and endDate must be provided for date filtering');
-    }
-
-    const result = await getDailyLogs(
-      page,
-      limit,
-      startDate,
-      endDate,
-      userId
-    );
-
-    res.status(200).json({
-      success: true,
-      data: result
-    });
-  } catch (error) {
-    if (error instanceof AppError) {
-      res.status(error.statusCode).json({
-        success: false,
-        message: error.message
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error'
-      });
-    }
-  }
+  res.json({
+    success: true,
+    data: logs
+  });
 };
 
 export const getDailyLogByIdController = async (req: Request, res: Response) => {

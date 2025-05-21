@@ -12,7 +12,10 @@ import { httpLogger, requestLogger, errorLogger } from './middleware/logging.mid
 import authRoutes from './modules/auth/auth.routes';
 import overviewRoutes from './modules/overview/overview.routes';
 import dailyLogRoutes from './modules/dailyLog/dailyLog.routes';
-
+import userRoutes from './modules/user/user.routes';
+import topPerformersRoutes from './modules/topPerformer/topPerformer.routes';
+import insightRoutes from './modules/insight/insight.routes';
+import reportRoutes from './modules/report/report.routes';
 const app = express();
 
 // Load Swagger document
@@ -70,10 +73,11 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/overview', overviewRoutes);
-// app.use('/api/users', userRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/daily-logs', dailyLogRoutes);
-// app.use('/api/reports', reportRoutes);
-// app.use('/api/settings', settingRoutes);
+app.use('/api/top-performers', topPerformersRoutes);
+app.use('/api/insights', insightRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Error handling
 app.use(errorLogger);

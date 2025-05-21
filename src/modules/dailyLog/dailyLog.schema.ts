@@ -10,10 +10,15 @@ export const createDailyLogSchema = z.object({
       .refine((date) => !isNaN(date.getTime()), {
         message: 'Invalid date format. Please use YYYY-MM-DD',
       }),
-    isPresent: z.boolean({
-      required_error: 'isPresent is required',
-      invalid_type_error: 'isPresent must be a boolean',
-    }),
+    workerPresents: z.array(
+      z.number({
+        required_error: 'Worker ID is required',
+        invalid_type_error: 'Worker ID must be a number',
+      })
+      .int('Worker ID must be an integer')
+      .positive('Worker ID must be a positive number')
+    ).min(0, 'At least one worker must be present'),
+    workNotes: z.string().optional(),
     binningCount: z.number({
       invalid_type_error: 'binningCount must be a number',
     })
@@ -37,10 +42,6 @@ export const updateDailyLogSchema = z.object({
       .pipe(z.number().int('id must be an integer').positive('id must be a positive number')),
   }),
   body: z.object({
-    isPresent: z.boolean({
-      required_error: 'isPresent is required',
-      invalid_type_error: 'isPresent must be a boolean',
-    }),
     binningCount: z.number({
       invalid_type_error: 'binningCount must be a number',
     })
@@ -51,6 +52,20 @@ export const updateDailyLogSchema = z.object({
     })
       .min(0, 'pickingCount must be a non-negative number')
       .optional(),
+    totalItems: z.number({
+      invalid_type_error: 'totalItems must be a number',
+    })
+      .min(0, 'totalItems must be a non-negative number')
+      .optional(),
+    workerPresents: z.array(
+      z.number({
+        required_error: 'Worker ID is required',
+        invalid_type_error: 'Worker ID must be a number',
+      })
+      .int('Worker ID must be an integer')
+      .positive('Worker ID must be a positive number')
+    ).min(0, 'At least one worker must be present'),
+    workNotes: z.string().optional(),
   }),
 });
 
@@ -90,6 +105,9 @@ export const getDailyLogsSchema = z.object({
       .transform(Number)
       .pipe(z.number().int('userId must be an integer'))
       .optional(),
+    search: z.string().optional(),
+    sort: z.string().optional(),
+    direction: z.string().optional(),
   }).optional().refine(
     (data) => {
       if (data?.startDate && data?.endDate) {
@@ -209,4 +227,4 @@ export const getDailyLogStatsSchema = z.object({
       path: ['startDate'],
     }
   ),
-}); 
+});

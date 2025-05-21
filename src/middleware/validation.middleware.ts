@@ -9,9 +9,9 @@ export const validate = (schema: AnyZodObject) => async (
   next: NextFunction
 ) => {
   try {
-    // If schema has body property, validate the entire request object
+    // If schema has body, params, or query properties, validate the entire request object
     // Otherwise, assume schema is for request body only
-    if ('body' in schema.shape) {
+    if ('body' in schema.shape || 'params' in schema.shape || 'query' in schema.shape) {
       await schema.parseAsync({
         body: req.body,
         query: req.query,
@@ -27,7 +27,9 @@ export const validate = (schema: AnyZodObject) => async (
         errors: error.errors,
         path: req.path,
         method: req.method,
-        body: req.body
+        body: req.body,
+        params: req.params,
+        query: req.query
       });
       
       const errorMessage = error.errors

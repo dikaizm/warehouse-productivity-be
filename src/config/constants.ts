@@ -2,6 +2,18 @@
  * Application constants and configuration values
  */
 
+// Role configuration
+export const ROLES = {
+  KEPALA_GUDANG: 'kepala_gudang',
+  OPERASIONAL: 'operasional',
+  ADMIN_LOGISTIK: 'admin_logistik',
+} as const;
+
+export const ACCESS_LEVEL = {
+  EDITOR: 'editor',
+  VIEWER: 'viewer'
+} as const;
+
 // Work schedule configuration
 export const WORK_SCHEDULE = {
   // 1 = Monday, 7 = Sunday
