@@ -18,14 +18,20 @@ const resend = new Resend(process.env.MAIL_RESEND_API_KEY);
  */
 export const getReportData = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const parsedQuery = req.query as unknown as ReportFilterQuery;
-
-        // Validate date range
-        if (parsedQuery.startDate > parsedQuery.endDate) {
-            throw new AppError(400, 'Start date must be before or equal to end date');
+        const { startDate, endDate, type, search, sortBy, sortOrder, operatorIds } = req.query as any;
+        if (!startDate || !endDate || !type) {
+            throw new AppError(400, 'startDate, endDate, and type are required');
         }
-
-        const reportData = await getReportDataService(parsedQuery);
+        const filter = {
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            type,
+            search,
+            sortBy,
+            sortOrder,
+            operatorIds
+        };
+        const reportData = await getReportDataService(filter);
         res.json({
             success: true,
             data: reportData
@@ -44,31 +50,33 @@ export const getReportData = async (req: Request, res: Response, next: NextFunct
  */
 export const exportReportData = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const parsedQuery = req.query as unknown as ReportExportQuery;
-
-        // Validate date range
-        if (parsedQuery.startDate > parsedQuery.endDate) {
-            throw new AppError(400, 'Start date must be before or equal to end date');
+        const { startDate, endDate, type, search, sortBy, sortOrder, operatorIds, fileFormat, email } = req.query as any;
+        if (!startDate || !endDate || !type || !fileFormat) {
+            throw new AppError(400, 'startDate, endDate, type, and fileFormat are required');
         }
-
-        const fileBuffer = await exportReportDataService(parsedQuery);
-        const contentType = parsedQuery.fileFormat === 'csv' ? 'text/csv' : 'application/pdf';
-        const fileExtension = parsedQuery.fileFormat;
+        const filter = {
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            type,
+            search,
+            sortBy,
+            sortOrder,
+            operatorIds,
+            fileFormat,
+            email
+        };
+        const fileBuffer = await exportReportDataService(filter);
+        const contentType = fileFormat === 'csv' ? 'text/csv' : 'application/pdf';
+        const fileExtension = fileFormat;
         const fileName = `report_${format(new Date(), 'yyyy-MM-dd-HH-mm-ss')}.${fileExtension}`;
-
-        // Ensure reports directory exists
         const reportsDir = path.join(__dirname, '..', '..', '..', 'public', 'reports');
         if (!fs.existsSync(reportsDir)) {
             fs.mkdirSync(reportsDir, { recursive: true });
         }
         const filePath = path.join(reportsDir, fileName);
-        // Save file
         fs.writeFileSync(filePath, fileBuffer);
         logger.info(`Report exported to ${filePath}`);
-
-        // Send email
-        if (parsedQuery.email) await sendReportEmail(parsedQuery.email, filePath);
-
+        if (email) await sendReportEmail(email, filePath);
         res.setHeader('Content-Type', contentType);
         res.setHeader('Cache-Control', 'no-store');
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);

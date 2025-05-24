@@ -233,7 +233,7 @@ export const getWorkerPerformance = async (
 
       // Update metrics for each present operator
       log.attendance.forEach(attendance => {
-        const operator = attendance.operator;
+        const operator = attendance.operator as { id: number; fullName: string };
         const operatorMetric = operatorMetrics.get(operator.id);
         if (operatorMetric) {
           operatorMetric.dailyProductivities.push(dailyProductivity);
