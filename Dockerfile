@@ -15,4 +15,4 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/public ./public
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma generate && npx prisma db seed && npx prisma migrate deploy && node dist/index.js"] 
+CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && node dist/index.js"] 
