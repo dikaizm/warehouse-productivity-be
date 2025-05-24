@@ -3,6 +3,7 @@ version: '3.8'
 services:
   db:
     image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: 1234abcd
@@ -37,9 +38,12 @@ services:
     volumes:
       - ./public:/app/public
     command: >
-      sh -c "npx prisma generate && npx prisma migrate deploy && node dist/server.js"
+      sh -c "sleep 10 &&
+             npx prisma generate &&
+             npx prisma migrate deploy &&
+             node dist/server.js"
     restart: always
 
 volumes:
   db_data:
-  redis_data: 
+  redis_data:
