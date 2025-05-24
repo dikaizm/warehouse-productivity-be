@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subWeeks, subMonths, isSameDay, isSameWeek, isSameMonth } from 'date-fns';
 import { OverviewCountsResponse, BarProductivityResponse, TrendDataPoint, RecentLogResponse, TrendResponse } from './overview.schema';
-import { PRODUCTIVITY } from '../../config/constants';
+import { PRODUCTIVITY, TEAM_CATEGORIES } from '../../config/constants';
 
 const prisma = new PrismaClient();
 
@@ -62,7 +62,18 @@ export class OverviewService {
         pickingCount: true,
         attendance: {
           select: {
-            operatorId: true
+            operatorId: true,
+            operator: {
+              select: {
+                id: true,
+                subRole: {
+                  select: {
+                    name: true,
+                    teamCategory: true
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -73,20 +84,33 @@ export class OverviewService {
 
     // Calculate productivity for each day
     const productivityData = dailyLogs.map(log => {
-      const totalItems = (log.binningCount || 0) + (log.pickingCount || 0);
-      const operatorCount = log.attendance.length;
-      const productivity = operatorCount > 0 ? Math.round(totalItems / operatorCount) : 0;
+      let binningAttendance = 0;
+      let pickingAttendance = 0;
+
+      log.attendance.forEach(attendance => {
+        const operator = attendance.operator;
+        if (operator?.subRole?.teamCategory === TEAM_CATEGORIES.BINNING) {
+          binningAttendance++;
+        } else if (operator?.subRole?.teamCategory === TEAM_CATEGORIES.PICKING) {
+          pickingAttendance++;
+        }
+      });
+
+      const binningProd = binningAttendance > 0 ? log.binningCount / binningAttendance : 0;
+      const pickingProd = pickingAttendance > 0 ? log.pickingCount / pickingAttendance : 0;
+
+      const productivity = (binningProd + pickingProd) / 2;
 
       return {
-        date: log.logDate,
+        date: log.logDate as Date,
         count: productivity
       };
     });
 
     // Fill in missing days with zero productivity
     const allDays = Array.from({ length: 7 }, (_, i) => {
-      const date = subDays(end, 7 - 1 - i);
-      return startOfDay(date);
+      const date = startOfDay(subDays(end, 7 - 1 - i));
+      return date;
     });
 
     const filledData = allDays.map(date => {
