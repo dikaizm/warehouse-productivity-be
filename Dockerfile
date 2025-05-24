@@ -9,6 +9,9 @@ RUN npm run build
 # ---- Production Stage ----
 FROM node:20-alpine
 WORKDIR /app
+
+RUN apk add --no-cache openssl1.1-compat
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
