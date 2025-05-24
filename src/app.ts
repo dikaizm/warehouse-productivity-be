@@ -18,9 +18,6 @@ import insightRoutes from './modules/insight/insight.routes';
 import reportRoutes from './modules/report/report.routes';
 const app = express();
 
-// Load Swagger document
-const swaggerDocument = YAML.load(path.join(__dirname, '../swagger.yaml'));
-
 // Security middleware
 app.use(helmet());
 app.use(cors({
@@ -47,6 +44,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // API Documentation
 if (process.env.NODE_ENV !== 'production') {
+  // Load Swagger document
+  const swaggerDocument = YAML.load(path.join(__dirname, '../swagger.yaml'));
+
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
     customCss: '.swagger-ui .topbar { display: none }',
     customSiteTitle: "Warehouse Productivity API Documentation",
