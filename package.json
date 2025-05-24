@@ -10,7 +10,7 @@
     "test": "vitest",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "prepare": "if [ \"NODE_ENV\" != \"production\" ]; then husky install; fi",
+    "prepare": "if [ \"$NODE_ENV\" != \"production\" ]; then npx husky install; fi",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts"
