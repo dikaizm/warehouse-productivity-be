@@ -46,17 +46,19 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // API Documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: "Warehouse Productivity API Documentation",
-  customfavIcon: "/favicon.ico",
-  swaggerOptions: {
-    persistAuthorization: true,
-    docExpansion: 'none',
-    filter: true,
-    showCommonExtensions: true,
-  }
-}));
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: "Warehouse Productivity API Documentation",
+    customfavIcon: "/favicon.ico",
+    swaggerOptions: {
+      persistAuthorization: true,
+      docExpansion: 'none',
+      filter: true,
+      showCommonExtensions: true,
+    }
+  }));
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
