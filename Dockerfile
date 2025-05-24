@@ -1,5 +1,5 @@
 # ---- Build Stage ----
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -7,10 +7,10 @@ COPY . .
 RUN npm run build
 
 # ---- Production Stage ----
-FROM node:20-alpine
+FROM node:20-slim
 WORKDIR /app
 
-RUN apk add --no-cache openssl1.1-compat
+RUN apk add --no-cache openssl libssl1.1
 
 COPY package*.json ./
 RUN npm ci --omit=dev
