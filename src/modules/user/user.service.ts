@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
-import { CreateUserRequest, UpdateUserRequest, UserResponse, RoleName, SubRoleName } from './user.type';
+import { CreateUserRequest, UpdateUserRequest, UserResponse, RoleName, SubRoleName, UserMeResponse } from './user.type';
 import { AppError } from '../../utils/error';
 import logger from '../../utils/logger';
 
@@ -45,7 +45,7 @@ export const getUsers = async (role: string): Promise<UserResponse[]> => {
   }));
 };
 
-export const getUserById = async (id: number): Promise<UserResponse> => {
+export const getUserById = async (id: number): Promise<UserMeResponse> => {
   const user = await prisma.user.findUnique({
     where: { id },
     include: {
@@ -63,19 +63,7 @@ export const getUserById = async (id: number): Promise<UserResponse> => {
     fullName: user.fullName || '',
     username: user.username,
     email: user.email,
-    role: {
-      id: user.role.id,
-      name: user.role.name as RoleName,
-      editAccess: user.role.editAccess,
-      viewAccess: user.role.viewAccess,
-      description: user.role.description
-    },
-    subRole: {
-      id: user.subRoleId,
-      name: user.subRole.name as SubRoleName,
-    },
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt
+    role: user.role.name as RoleName
   };
 };
 

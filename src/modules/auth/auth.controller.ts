@@ -75,7 +75,7 @@ export const refreshTokenHandler = async (req: Request, res: Response) => {
         success: false,
         message: 'Refresh token is required',
       });
-    }
+    }``
 
     const result = await refreshToken(token);
 
