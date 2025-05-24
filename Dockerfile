@@ -9,9 +9,6 @@ RUN npm run build
 # ---- Production Stage ----
 FROM node:20-slim
 WORKDIR /app
-
-RUN apk add --no-cache openssl libssl1.1
-
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
