@@ -41,6 +41,7 @@
     "redis": "^4.7.1",
     "resend": "^4.5.1",
     "swagger-ui-express": "^5.0.0",
+    "ts-node": "^10.9.2",
     "winston": "^3.17.0",
     "yamljs": "^0.3.0",
     "zod": "^3.24.4"
