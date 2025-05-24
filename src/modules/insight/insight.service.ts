@@ -243,14 +243,14 @@ export const getWorkerPerformance = async (
 
     // Calculate average productivity for each operator in this time point
     const data: WorkerPerformancePoint[] = Array.from(operatorMetrics.values())
-      .map((metric: any) => ({
+      .map((metric: { operatorId: number, operatorName: string, dailyProductivities: number[] }) => ({
         operatorId: metric.operatorId,
         operatorName: metric.operatorName,
         value: metric.dailyProductivities.length > 0
           ? Math.round(
-              metric.dailyProductivities.reduce((sum: number, val: number) => sum + val, 0) /
-                metric.dailyProductivities.length
-            )
+            metric.dailyProductivities.reduce((sum: number, val: number) => sum + val, 0) /
+            metric.dailyProductivities.length
+          )
           : 0 // Zero productivity for operators with no attendance
       }))
       .sort((a, b) => b.value - a.value); // Sort by productivity descending
