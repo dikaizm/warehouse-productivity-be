@@ -29,6 +29,7 @@ services:
       - db
       - redis
     environment:
+      TZ: Asia/Jakarta
       DATABASE_URL: mysql://warehouse_user:1234abcd@db:3306/warehouse
       REDIS_URL: redis://redis:6379
       NODE_ENV: production
