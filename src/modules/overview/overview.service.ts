@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subWeeks, subMonths, isSameDay, isSameWeek, isSameMonth } from 'date-fns';
-import { OverviewCountsResponse, BarProductivityResponse, TrendDataPoint, RecentLogResponse, TrendResponse } from './overview.schema';
+import { startOfDay, endOfDay, startOfWeek, startOfMonth, subDays } from 'date-fns';
+import { OverviewCountsResponse, BarProductivityResponse, RecentLogResponse, TrendResponse } from './overview.schema';
 import { PRODUCTIVITY, TEAM_CATEGORIES } from '../../config/constants';
 
 const prisma = new PrismaClient();
@@ -24,7 +24,13 @@ export class OverviewService {
             operator: {
               select: {
                 id: true,
-                username: true
+                fullName: true,
+                subRole: {
+                  select: {
+                    name: true,
+                    teamCategory: true
+                  }
+                }
               }
             }
           }
@@ -32,15 +38,36 @@ export class OverviewService {
       }
     });
 
-    const totalItems = (dailyLog?.binningCount || 0) + (dailyLog?.pickingCount || 0);
-    const operatorCount = dailyLog?.attendance.length || 0;
-    const productivityActual = operatorCount > 0 ? Math.round(totalItems / operatorCount) : 0;
+    if (!dailyLog) {
+      return {
+        totalItemsToday: 0,
+        presentWorkers: 0,
+        productivityTarget: PRODUCTIVITY.TARGET,
+        productivityActual: 0
+      };
+    }
+
+    let binningAttendance = 0;
+    let pickingAttendance = 0;
+    dailyLog.attendance.forEach(attendance => {
+      const operator = attendance.operator;
+      if (operator.subRole.teamCategory === TEAM_CATEGORIES.BINNING) {
+        binningAttendance++;
+      } else if (operator.subRole.teamCategory === TEAM_CATEGORIES.PICKING) {
+        pickingAttendance++;
+      }
+    });
+
+    const binningProd = binningAttendance > 0 ? dailyLog.binningCount / binningAttendance : 0;
+    const pickingProd = pickingAttendance > 0 ? dailyLog.pickingCount / pickingAttendance : 0;
+
+    const productivityActual = (binningProd + pickingProd) / 2;
 
     return {
-      totalItemsToday: totalItems,
-      presentWorkers: operatorCount,
+      totalItemsToday: dailyLog.totalItems,
+      presentWorkers: dailyLog.attendance.length,
       productivityTarget: PRODUCTIVITY.TARGET,
-      productivityActual
+      productivityActual: Math.round(productivityActual)
     };
   }
 
@@ -103,7 +130,7 @@ export class OverviewService {
 
       return {
         date: log.logDate as Date,
-        count: productivity
+        count: Math.round(productivity)
       };
     });
 
@@ -127,8 +154,6 @@ export class OverviewService {
   }
 
   async getTrend(): Promise<TrendResponse> {
-    const today = new Date();
-
     // Fetch all logs without date restriction
     const logs = await prisma.dailyLog.findMany({
       select: {
