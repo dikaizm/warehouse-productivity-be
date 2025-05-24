@@ -4,7 +4,7 @@ import { AppError } from '../../middleware/error.middleware';
 
 export const registerHandler = async (req: Request, res: Response) => {
   try {
-    const { username, email, password, fullName, roleId } = req.body;
+    const { username, email, password, fullName, roleId, subRoleId } = req.body;
 
     const user = await register({
       username,
@@ -12,6 +12,7 @@ export const registerHandler = async (req: Request, res: Response) => {
       password,
       fullName,
       roleId,
+      subRoleId
     });
 
     res.status(201).json({

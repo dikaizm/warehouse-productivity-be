@@ -13,6 +13,7 @@ const registerSchema = z.object({
   password: z.string().min(8),
   fullName: z.string().min(2).max(100),
   roleId: z.number().int().positive(),
+  subRoleId: z.number().int().positive()
 });
 
 export const register = async (data: z.infer<typeof registerSchema>) => {
@@ -33,6 +34,16 @@ export const register = async (data: z.infer<typeof registerSchema>) => {
   // Hash password
   const hashedPassword = await bcrypt.hash(data.password, 10);
 
+  const role = await prismaClient.role.findUnique({
+    where: {
+      id: data.roleId
+    }
+  });
+
+  if (!role) {
+    throw new AppError(404, 'Role not found');
+  }
+
   // Create user with role
   const user = await prismaClient.user.create({
     data: {
@@ -40,10 +51,13 @@ export const register = async (data: z.infer<typeof registerSchema>) => {
       email: data.email,
       passwordHash: hashedPassword,
       fullName: data.fullName,
-      roleId: data.roleId
+      roleId: data.roleId,
+      subRoleId: data.subRoleId,
+      isActive: true,
     },
     include: {
-      role: true
+      role: true,
+      subRole: true
     }
   });
 
@@ -52,7 +66,8 @@ export const register = async (data: z.infer<typeof registerSchema>) => {
     username: user.username,
     email: user.email,
     fullName: user.fullName,
-    role: user.role.name
+    role: user.role.name,
+    subRole: user.subRole.name
   };
 };
 

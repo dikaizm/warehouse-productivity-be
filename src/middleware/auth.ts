@@ -9,13 +9,14 @@ const prisma = new PrismaClient();
 interface UserJwt {
   id: number;
   username: string;
+  fullName: string;
   role: string;
 }
 
 declare global {
   namespace Express {
     interface Request {
-      user?: UserJwt;
+      user?: UserJwt | undefined;
     }
   }
 }
@@ -63,6 +64,7 @@ export const authenticateJWT = async (
     req.user = {
       id: user.id,
       username: user.username,
+      fullName: user.fullName || '',
       role: user.role.name
     };
     
