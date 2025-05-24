@@ -51,7 +51,13 @@ const getReportDataInternal = async (filter: ReportFilter): Promise<ReportData> 
                         operator: {
                             select: {
                                 id: true,
-                                fullName: true
+                                fullName: true,
+                                subRole: {
+                                    select: {
+                                        name: true,
+                                        teamCategory: true
+                                    }
+                                }
                             }
                         }
                     }
@@ -102,12 +108,11 @@ const getReportDataInternal = async (filter: ReportFilter): Promise<ReportData> 
                         time: timeKey,
                         operatorId: operator.id,
                         operatorName: operator.fullName || 'Unknown',
+                        operatorSubRole: operator.subRole?.name || 'Unknown',
                         binningCount: 0,
                         pickingCount: 0,
                         totalItems: 0,
                         productivity: 0,
-                        workdays: 0,
-                        attendanceCount: 0
                     });
                 }
 
@@ -115,8 +120,6 @@ const getReportDataInternal = async (filter: ReportFilter): Promise<ReportData> 
                 point.binningCount += log.binningCount || 0;
                 point.pickingCount += log.pickingCount || 0;
                 point.totalItems += totalItems;
-                point.workdays++;
-                point.attendanceCount++;
                 point.productivity = dailyProductivity;
             });
         });
@@ -125,13 +128,11 @@ const getReportDataInternal = async (filter: ReportFilter): Promise<ReportData> 
 
         // Calculate meta information
         const totalOperators = users.length;
-        const totalWorkdays = allDataPoints.reduce((sum, point) => sum + point.workdays, 0);
         const totalItems = allDataPoints.reduce((sum, point) => sum + point.totalItems, 0);
 
         const meta: ReportMeta = {
             filter,
             totalOperators,
-            totalWorkdays,
             totalItems,
             generatedAt: new Date().toISOString()
         };
@@ -187,12 +188,11 @@ const exportToCsv = async (reportData: ReportData): Promise<Buffer> => {
         'time',
         'operatorId',
         'operatorName',
+        'operatorSubRole',
         'binningCount',
         'pickingCount',
         'totalItems',
         'productivity',
-        'workdays',
-        'attendanceCount'
     ];
 
     const parser = new Parser({ fields });
@@ -223,7 +223,6 @@ const exportToPdf = async (reportData: ReportData): Promise<Buffer> => {
             // Add meta information
             doc.fontSize(12).text('Meta Information:');
             doc.fontSize(10).text(`Total Operators: ${reportData.meta.totalOperators}`);
-            doc.text(`Total Workdays: ${reportData.meta.totalWorkdays}`);
             doc.text(`Total Items: ${reportData.meta.totalItems}`);
             doc.text(`Generated At: ${reportData.meta.generatedAt}`);
             doc.moveDown();
@@ -233,8 +232,8 @@ const exportToPdf = async (reportData: ReportData): Promise<Buffer> => {
             doc.moveDown();
 
             // Table headers
-            const headers = ['Time', 'Operator', 'Binning', 'Picking', 'Total', 'Productivity', 'Workdays'];
-            const columnWidths = [80, 100, 60, 60, 60, 60, 60];
+            const headers = ['Time', 'Operator', 'Binning', 'Picking', 'Total', 'Productivity'];
+            const columnWidths = [80, 100, 60, 60, 60, 60];
             let x = 50;
             let y = doc.y;
 
@@ -260,7 +259,6 @@ const exportToPdf = async (reportData: ReportData): Promise<Buffer> => {
                 x += columnWidths[4];
                 doc.text(row.productivity.toFixed(2), x, y, { width: columnWidths[5] });
                 x += columnWidths[5];
-                doc.text(row.workdays.toString(), x, y, { width: columnWidths[6] });
                 y += 20;
 
                 // Add new page if needed

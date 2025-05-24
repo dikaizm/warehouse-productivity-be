@@ -5,10 +5,7 @@ export type DailyLog = {
   binningCount: number;
   pickingCount: number;
   totalItems: number;
-  productivity: {
-    actual: number;
-    target: number;
-  };
+  productivity: number; // This will be the percentage (avgProd/TARGET * 100)
   attendance: {
     operatorId: number;
     operatorName: string;
@@ -31,10 +28,7 @@ export type DailyLogDetail = {
   binningCount: number;
   pickingCount: number;
   totalItems: number;
-  productivity: {
-    actual: number;
-    target: number;
-  };
+  productivity: number; // This will be the percentage (avgProd/TARGET * 100)
   attendance: {
     operatorId: number;
     operatorName: string;

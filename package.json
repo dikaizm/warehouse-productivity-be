@@ -39,6 +39,7 @@
     "mysql2": "^3.14.1",
     "pdfkit": "^0.17.1",
     "redis": "^4.7.1",
+    "resend": "^4.5.1",
     "swagger-ui-express": "^5.0.0",
     "winston": "^3.17.0",
     "yamljs": "^0.3.0",

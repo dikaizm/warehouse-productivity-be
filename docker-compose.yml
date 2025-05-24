@@ -1,38 +1,45 @@
 version: '3.8'
 
 services:
-  mysql:
+  db:
     image: mysql:8.0
-    container_name: warehouse-productivity-db
+    restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: warehouse_productivity
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: 1234abcd
+      MYSQL_DATABASE: warehouse
+      MYSQL_USER: warehouse_user
+      MYSQL_PASSWORD: warehouse_pass
     ports:
       - "3306:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password
+      - db_data:/var/lib/mysql
 
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: warehouse-productivity-api
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  app:
+    build: .
     depends_on:
-      - mysql
+      - db
+      - redis
+    environment:
+      DATABASE_URL: mysql://warehouse_user:warehouse_pass@db:3306/warehouse
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      MAIL_RESEND_API_KEY: ${MAIL_RESEND_API_KEY}
     ports:
       - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - DATABASE_URL=mysql://user:password@mysql:3306/warehouse_productivity
-      - JWT_ACCESS_SECRET=dev-access-secret
-      - JWT_REFRESH_SECRET=dev-refresh-secret
     volumes:
-      - .:/app
-      - /app/node_modules
-    command: npm run dev
+      - ./public:/app/public
+    command: >
+      sh -c "npx prisma generate && npx prisma migrate deploy && node dist/index.js"
+    restart: always
 
 volumes:
-  mysql_data: 
+  db_data:
+  redis_data: 

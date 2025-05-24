@@ -6,6 +6,9 @@ import { ReportFilterQuery, ReportExportQuery } from './report.schema';
 import { format } from 'date-fns';
 import path from 'path';
 import fs from 'fs';
+import { CreateEmailResponseSuccess, Resend } from 'resend';
+
+const resend = new Resend(process.env.MAIL_RESEND_API_KEY);
 
 /**
  * Get report data based on filter parameters
@@ -61,6 +64,10 @@ export const exportReportData = async (req: Request, res: Response, next: NextFu
         const filePath = path.join(reportsDir, fileName);
         // Save file
         fs.writeFileSync(filePath, fileBuffer);
+        logger.info(`Report exported to ${filePath}`);
+
+        // Send email
+        if (parsedQuery.email) await sendReportEmail(parsedQuery.email, filePath);
 
         res.setHeader('Content-Type', contentType);
         res.setHeader('Cache-Control', 'no-store');
@@ -71,3 +78,30 @@ export const exportReportData = async (req: Request, res: Response, next: NextFu
         next(error);
     }
 };
+
+export const sendReportEmail = async (email: string, filePath: string): Promise<CreateEmailResponseSuccess> => {
+    const fileContent = fs.readFileSync(filePath); // Read file as buffer
+
+    const { data, error } = await resend.emails.send({
+        from: 'Produktivitas Gudang <info@stelarhub.com>',
+        to: email,
+        subject: 'Laporan Produktivitas Gudang - ' + format(new Date(), 'dd MMMM yyyy'),
+        text: 'Laporan Produktivitas Gudang',
+        attachments: [
+            {
+                filename: filePath.split('/').pop()!, // just the file name
+                content: fileContent
+            }
+        ]
+    });
+
+    if (error) {
+        logger.error('Error in sendReportEmail:', error);
+        throw new AppError(500, 'Failed to send report email');
+    }
+
+    if (!data) throw new AppError(500, 'Failed to send report email');
+    logger.info(`Report email sent to ${email}`);
+
+    return data;
+}

@@ -6,5 +6,9 @@ export type TopPerformer = {
     productivity: {
         avgActual: number;
         target: number;
-    }
+    },
+    operatorSubRole: {
+        name: string;
+        teamCategory: string;
+    },
 }

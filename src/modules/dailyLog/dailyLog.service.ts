@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
 import { DailyLog, DailyLogDetail, DailyLogResult } from './dailyLog.type';
 import { getRedisClient, CACHE_KEYS, CACHE_TTL } from '../../config/redis';
-import { PRODUCTIVITY, ROLES } from '../../config/constants';
+import { PRODUCTIVITY, ROLES, TEAM_CATEGORIES } from '../../config/constants';
 import logger from '../../utils/logger';
 
 const prisma = new PrismaClient();
@@ -265,26 +265,37 @@ export const updateDailyLog = async (
   return dailyLog;
 };
 
-// Helper function to calculate productivity
+// Helper function to calculate productivity according to specification
 const calculateProductivity = (log: any): DailyLog => {
-  const totalItems = log.totalItems || 0;
-  const productivity = totalItems ? Math.round(totalItems / log.attendance.length) : 0;
+  // Count operators by sub-role
+  const binningOperators = log.attendance.filter((a: any) => a.operator.subRole.teamCategory === TEAM_CATEGORIES.BINNING).length;
+  const pickingOperators = log.attendance.filter((a: any) => a.operator.subRole.teamCategory === TEAM_CATEGORIES.PICKING).length;
+
+  // Calculate per-worker productivity by team
+  const binPerWorker = binningOperators > 0 ? log.binningCount / binningOperators : 0;
+  const pickPerWorker = pickingOperators > 0 ? log.pickingCount / pickingOperators : 0;
+
+  // Calculate average per-worker productivity
+  const avgProd = (binPerWorker + pickPerWorker) / 2;
+
+  // Calculate final productivity percentage
+  const productivity = PRODUCTIVITY.TARGET > 0 
+    ? (avgProd / PRODUCTIVITY.TARGET) * 100 
+    : 0;
+
   return {
     id: log.id,
     logDate: log.logDate,
     binningCount: log.binningCount,
     pickingCount: log.pickingCount,
-    totalItems,
+    totalItems: log.totalItems || 0,
+    productivity,
     attendance: log.attendance.map((a: any) => ({
       operatorId: a.operatorId,
       operatorName: a.operator.fullName,
       operatorRole: a.operator.role.name,
       operatorSubRole: a.operator.subRole.name
-    })),
-    productivity: {
-      actual: productivity,
-      target: PRODUCTIVITY.TARGET
-    }
+    }))
   };
 };
 
@@ -372,8 +383,8 @@ export const getDailyLogs = async (
               bVal = b.attendance.length;
               break;
             case 'productivity':
-              aVal = a.productivity.actual;
-              bVal = b.productivity.actual;
+              aVal = a.productivity;
+              bVal = b.productivity;
               break;
             default:
               aVal = Number(a[sortBy as keyof DailyLog] || 0);
@@ -438,6 +449,7 @@ export const getDailyLogs = async (
                   subRole: {
                     select: {
                       name: true,
+                      teamCategory: true
                     },
                   },
                 },
@@ -453,14 +465,14 @@ export const getDailyLogs = async (
     ]);
 
     // Process logs and calculate productivity
-    let processedLogs = logs.map(calculateProductivity);
+    let processedLogs = logs.map(log => calculateProductivity(log));
 
     // Sort by productivity if needed
     if (sortBy === 'productivity') {
       processedLogs.sort((a: DailyLog, b: DailyLog) =>
         sortOrder === 'asc'
-          ? a.productivity.actual - b.productivity.actual
-          : b.productivity.actual - a.productivity.actual
+          ? a.productivity - b.productivity
+          : b.productivity - a.productivity
       );
     }
 
@@ -530,7 +542,8 @@ export const getDailyLogs = async (
                   subRole: {
                     select: {
                       name: true,
-                    },
+                      teamCategory: true
+                    }
                   },
                 },
               },
@@ -546,12 +559,12 @@ export const getDailyLogs = async (
       }),
     ]);
 
-    const processedLogs = logs.map(calculateProductivity);
+    const processedLogs: DailyLog[] = logs.map(calculateProductivity);
     if (sortBy === 'productivity') {
       processedLogs.sort((a: DailyLog, b: DailyLog) =>
         sortOrder === 'asc'
-          ? a.productivity.actual - b.productivity.actual
-          : b.productivity.actual - a.productivity.actual
+          ? a.productivity - b.productivity
+          : b.productivity - a.productivity
       );
     }
 
@@ -607,10 +620,7 @@ export const getDailyLogById = async (id: number) => {
     binningCount: log.binningCount,
     pickingCount: log.pickingCount,
     totalItems: log.totalItems || 0,
-    productivity: {
-      actual: log.totalItems ? log.totalItems / log.attendance.length : 0,
-      target: PRODUCTIVITY.TARGET
-    },
+    productivity: calculateProductivity(log).productivity,
     attendance: log.attendance.map((a: any) => ({
       operatorId: a.operatorId,
       operatorName: a.operator.fullName,

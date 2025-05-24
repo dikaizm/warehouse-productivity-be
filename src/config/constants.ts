@@ -19,6 +19,11 @@ export const SUB_ROLES = {
   QUALITY_CONTROL: 'quality_control',
 } as const;
 
+export const TEAM_CATEGORIES = {
+  BINNING: 'binning',
+  PICKING: 'picking',
+} as const;
+
 export const ACCESS_LEVEL = {
   EDITOR: 'editor',
   VIEWER: 'viewer'
@@ -52,6 +57,7 @@ export const WORK_SCHEDULE = {
 // Productivity configuration
 export const PRODUCTIVITY = {
   TARGET: 55, // Items per day
+  WORKDAYS: 22, // 22 workdays per month
   UNITS: {
     BINNING: 'items/day',
     PICKING: 'items/day'

@@ -39,11 +39,12 @@ model Role {
 }
 
 model SubRole {
-  id     Int    @id @default(autoincrement()) @map("id")
-  name   String @unique @map("name")
-  roleId Int    @map("role_id")
-  role   Role   @relation(fields: [roleId], references: [id])
-  User   User[]
+  id     Int     @id @default(autoincrement()) @map("id")
+  name   String  @unique @map("name")
+  roleId Int     @map("role_id")
+  role   Role    @relation(fields: [roleId], references: [id])
+  teamCategory   String? @map("team_category")
+  User           User[]
 
   @@map("sub_roles")
 }

@@ -1,24 +1,18 @@
-FROM node:18-alpine
-
+# ---- Build Stage ----
+FROM node:20-alpine AS builder
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
-
-# Install dependencies
-RUN npm install
-
-# Copy source code
+RUN npm ci
 COPY . .
-
-# Generate Prisma client
-RUN npx prisma generate
-
-# Build TypeScript
 RUN npm run build
 
-# Expose port
+# ---- Production Stage ----
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/public ./public
 EXPOSE 3000
-
-# Start the application
-CMD ["npm", "run", "dev"] 
+CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && node dist/index.js"] 

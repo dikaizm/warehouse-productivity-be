@@ -26,7 +26,8 @@ export const reportFilterSchema = baseReportFilterSchema;
 // Validation schema for report export
 export const reportExportSchema = baseReportFilterSchema.extend({
   query: baseReportFilterSchema.shape.query.extend({
-    fileFormat: z.enum(['csv', 'pdf']).default('csv')
+    fileFormat: z.enum(['csv', 'pdf']).default('csv'), 
+    email: z.string().email()
   })
 });
 
