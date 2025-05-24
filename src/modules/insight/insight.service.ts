@@ -215,7 +215,7 @@ export const getWorkerPerformance = async (
     }>();
 
     // Initialize metrics for all operators with empty productivity arrays
-    allOperators.forEach((operator) => {
+    allOperators.forEach((operator: { operatorId: number; operatorName: string }) => {
       operatorMetrics.set(operator.operatorId, {
         operatorId: operator.operatorId,
         operatorName: operator.operatorName,
