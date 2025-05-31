@@ -107,9 +107,9 @@ export const getTrendItem = async (startDate: Date, endDate: Date): Promise<Tren
 
         return {
           date,
-          binningCount: log?.binningCount ?? 0,
-          pickingCount: log?.pickingCount ?? 0,
-          totalItems: (log?.binningCount ?? 0) + (log?.pickingCount ?? 0)
+          binningCount: log?.binningCount || 0,
+          pickingCount: log?.pickingCount || 0,
+          totalItems: (log?.binningCount || 0) + (log?.pickingCount || 0)
         };
       });
 
