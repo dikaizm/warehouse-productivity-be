@@ -3,7 +3,7 @@ import { startOfDay, endOfDay, eachDayOfInterval, format, startOfYear, endOfYear
 import { WorkerPresentResponse, TrendItemResponse, TrendItemDataPoint, WorkerComparisonDataset, TimePointPerformance, WorkerPerformancePoint } from './insight.type';
 import { ROLES } from '../../config/constants';
 import logger from '../../utils/logger';
-import { getTrendData } from '../../utils/trend-cache.util';
+import { getTrendData, TrendDataPoint } from '../../utils/trend-cache.util';
 import { parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
@@ -61,7 +61,7 @@ export const getTrendItem = async (startDate: Date, endDate: Date): Promise<Tren
 
     try {
       const cachedTrendData = await getTrendData(startDate, endDate);
-      trendData = cachedTrendData.data.map(point => ({
+      trendData = cachedTrendData.data.map((point: TrendDataPoint) => ({
         date: parseISO(point.date),
         binningCount: point.binningCount,
         pickingCount: point.pickingCount,
@@ -79,6 +79,11 @@ export const getTrendItem = async (startDate: Date, endDate: Date): Promise<Tren
             lte: endOfDay(endDate)
           }
         },
+        select: {
+          logDate: true,
+          binningCount: true,
+          pickingCount: true
+        },
         orderBy: {
           logDate: 'asc'
         }
@@ -89,8 +94,8 @@ export const getTrendItem = async (startDate: Date, endDate: Date): Promise<Tren
         logs.map(log => [
           format(log.logDate, 'yyyy-MM-dd'),
           {
-            binningCount: log.binningCount,
-            pickingCount: log.pickingCount
+            binningCount: log.binningCount || 0,
+            pickingCount: log.pickingCount || 0
           }
         ])
       );

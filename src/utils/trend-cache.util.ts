@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, DailyLog } from '@prisma/client';
 import { getRedisClient, CACHE_KEYS, CACHE_TTL } from '../config/redis';
 import { startOfDay, endOfDay, format, parseISO, eachDayOfInterval } from 'date-fns';
 import logger from './logger';
@@ -21,6 +21,8 @@ export type TrendCacheData = {
   };
 };
 
+type LogData = Pick<DailyLog, 'logDate' | 'binningCount' | 'pickingCount'>;
+
 /**
  * Calculate trend data for a given date range
  */
@@ -36,10 +38,15 @@ export const calculateTrendData = async (
         lte: endOfDay(endDate)
       }
     },
+    select: {
+      logDate: true,
+      binningCount: true,
+      pickingCount: true
+    },
     orderBy: {
       logDate: 'asc'
     }
-  });
+  }) as LogData[];
 
   // Create a map of logs for easy lookup by date
   const logMap = new Map(
