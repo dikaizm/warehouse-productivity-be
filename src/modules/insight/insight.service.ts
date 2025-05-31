@@ -105,14 +105,14 @@ export const getTrendItem = async (startDate: Date, endDate: Date): Promise<Tren
       // Create data points for each day in the range
       trendData = eachDayOfInterval({ start: startOfDay(startDate), end: endOfDay(endDate) }).map(date => {
         const dateKey = format(date, 'yyyy-MM-dd');
-        const log = logMap.get(dateKey);
+        const log = logMap.get(dateKey) as { binningCount: number; pickingCount: number; totalItems: number };
 
         return {
           date, // Use the Date object directly
           binningCount: log?.binningCount || 0,
           pickingCount: log?.pickingCount || 0,
           totalItems: log?.totalItems || 0
-        };
+        } as TrendItemDataPoint;
       });
 
       lastUpdated = new Date().toISOString();
