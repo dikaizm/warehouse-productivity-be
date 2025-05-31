@@ -1,22 +1,19 @@
 import { PrismaClient } from '@prisma/client';
 import { getRedisClient, CACHE_KEYS, CACHE_TTL } from '../config/redis';
-import { startOfDay, endOfDay, format, parseISO } from 'date-fns';
+import { startOfDay, endOfDay, format, parseISO, eachDayOfInterval } from 'date-fns';
 import logger from './logger';
 
 const prisma = new PrismaClient();
 
-export type CompoundedTrendData = {
+export type TrendDataPoint = {
   date: string;
   binningCount: number;
   pickingCount: number;
   totalItems: number;
-  compoundedBinning: number;
-  compoundedPicking: number;
-  compoundedTotal: number;
 };
 
 export type TrendCacheData = {
-  data: CompoundedTrendData[];
+  data: TrendDataPoint[];
   lastUpdated: string;
   period: {
     startDate: string;
@@ -25,12 +22,12 @@ export type TrendCacheData = {
 };
 
 /**
- * Calculate compounded trend data for a given date range
+ * Calculate trend data for a given date range
  */
-export const calculateCompoundedTrend = async (
+export const calculateTrendData = async (
   startDate: Date,
   endDate: Date
-): Promise<CompoundedTrendData[]> => {
+): Promise<TrendDataPoint[]> => {
   // Get all logs within the date range
   const logs = await prisma.dailyLog.findMany({
     where: {
@@ -44,30 +41,27 @@ export const calculateCompoundedTrend = async (
     }
   });
 
-  // Initialize variables for compounding
-  let compoundedBinning = 0;
-  let compoundedPicking = 0;
-  let compoundedTotal = 0;
+  // Create a map of logs for easy lookup by date
+  const logMap = new Map(
+    logs.map(log => [
+      format(log.logDate, 'yyyy-MM-dd'),
+      {
+        binningCount: log.binningCount || 0,
+        pickingCount: log.pickingCount || 0
+      }
+    ])
+  );
 
-  // Calculate compounded values for each day
-  return logs.map(log => {
-    const binningCount = log.binningCount || 0;
-    const pickingCount = log.pickingCount || 0;
-    const totalItems = binningCount + pickingCount;
-
-    // Add to compounded totals
-    compoundedBinning += binningCount;
-    compoundedPicking += pickingCount;
-    compoundedTotal += totalItems;
+  // Create data points for each day in the range
+  return eachDayOfInterval({ start: startOfDay(startDate), end: endOfDay(endDate) }).map(date => {
+    const dateKey = format(date, 'yyyy-MM-dd');
+    const log = logMap.get(dateKey);
 
     return {
-      date: format(log.logDate, 'yyyy-MM-dd'),
-      binningCount,
-      pickingCount,
-      totalItems,
-      compoundedBinning,
-      compoundedPicking,
-      compoundedTotal
+      date: dateKey,
+      binningCount: log?.binningCount ?? 0,
+      pickingCount: log?.pickingCount ?? 0,
+      totalItems: (log?.binningCount ?? 0) + (log?.pickingCount ?? 0)
     };
   });
 };
@@ -80,28 +74,32 @@ export const getTrendData = async (
   endDate: Date
 ): Promise<TrendCacheData> => {
   const redis = getRedisClient();
-  const cacheKey = `${CACHE_KEYS.TREND_DATA}:${format(startDate, 'yyyy-MM-dd')}:${format(endDate, 'yyyy-MM-dd')}`;
+  const cacheKey = `${CACHE_KEYS.TREND_DATA}:${format(startOfDay(startDate), 'yyyy-MM-dd')}:${format(endOfDay(endDate), 'yyyy-MM-dd')}`;
 
   try {
     // Try to get from cache first
     const cachedData = await redis.get(cacheKey);
     if (cachedData) {
-      return JSON.parse(cachedData) as TrendCacheData;
+      const parsedData = JSON.parse(cachedData) as TrendCacheData;
+      logger.info('Trend data retrieved from cache', { cacheKey });
+      return parsedData;
     }
 
+    logger.info('Trend data not found in cache, calculating...', { cacheKey });
     // If not in cache, calculate and store
-    const trendData = await calculateCompoundedTrend(startDate, endDate);
+    const trendData = await calculateTrendData(startDate, endDate);
     const cacheData: TrendCacheData = {
       data: trendData,
       lastUpdated: new Date().toISOString(),
       period: {
-        startDate: format(startDate, 'yyyy-MM-dd'),
-        endDate: format(endDate, 'yyyy-MM-dd')
+        startDate: format(startOfDay(startDate), 'yyyy-MM-dd'),
+        endDate: format(endOfDay(endDate), 'yyyy-MM-dd')
       }
     };
 
     // Store in Redis with expiration
     await redis.setex(cacheKey, CACHE_TTL.TREND_DATA, JSON.stringify(cacheData));
+    logger.info('Trend data cached', { cacheKey });
 
     return cacheData;
   } catch (error) {
@@ -111,35 +109,24 @@ export const getTrendData = async (
 };
 
 /**
- * Invalidate trend data cache for a specific date range
- */
-export const invalidateTrendCache = async (
-  startDate: Date,
-  endDate: Date
-): Promise<void> => {
-  const redis = getRedisClient();
-  const cacheKey = `${CACHE_KEYS.TREND_DATA}:${format(startDate, 'yyyy-MM-dd')}:${format(endDate, 'yyyy-MM-dd')}`;
-
-  try {
-    await redis.del(cacheKey);
-    logger.info('Trend cache invalidated', { cacheKey });
-  } catch (error) {
-    logger.error('Error invalidating trend cache:', error);
-    throw error;
-  }
-};
-
-/**
  * Invalidate all trend data caches
  */
 export const invalidateAllTrendCaches = async (): Promise<void> => {
   const redis = getRedisClient();
+  const pattern = `${CACHE_KEYS.TREND_DATA}:*`;
   
   try {
-    const keys = await redis.keys(`${CACHE_KEYS.TREND_DATA}:*`);
+    const keys = await redis.keys(pattern);
     if (keys.length > 0) {
-      await redis.del(...keys);
-      logger.info('All trend caches invalidated', { count: keys.length });
+      const deleted = await redis.del(...keys);
+      logger.info('All trend caches invalidated', { 
+        pattern,
+        keysFound: keys.length,
+        keysDeleted: deleted,
+        keys: keys // Log the actual keys for debugging
+      });
+    } else {
+      logger.info('No trend caches found to invalidate', { pattern });
     }
   } catch (error) {
     logger.error('Error invalidating all trend caches:', error);

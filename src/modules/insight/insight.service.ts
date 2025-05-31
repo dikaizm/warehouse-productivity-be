@@ -65,10 +65,7 @@ export const getTrendItem = async (startDate: Date, endDate: Date): Promise<Tren
         date: parseISO(point.date),
         binningCount: point.binningCount,
         pickingCount: point.pickingCount,
-        totalItems: point.totalItems,
-        compoundedBinning: point.compoundedBinning,
-        compoundedPicking: point.compoundedPicking,
-        compoundedTotal: point.compoundedTotal
+        totalItems: point.totalItems
       }));
       lastUpdated = cachedTrendData.lastUpdated;
     } catch (cacheError) {
@@ -87,33 +84,30 @@ export const getTrendItem = async (startDate: Date, endDate: Date): Promise<Tren
         }
       });
 
-      // Initialize variables for compounding
-      let compoundedBinning = 0;
-      let compoundedPicking = 0;
-      let compoundedTotal = 0;
+      // Create a map of logs for easy lookup by date
+      const logMap = new Map(
+        logs.map(log => [
+          format(log.logDate, 'yyyy-MM-dd'),
+          {
+            binningCount: log.binningCount,
+            pickingCount: log.pickingCount
+          }
+        ])
+      );
 
-      // Create data points for each day in the range, even if no logs exist
-      trendData = eachDayOfInterval({ start: startDate, end: endDate }).map(date => {
-        const log = logs.find(l => format(l.logDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd'));
-        const binningCount = log?.binningCount || 0;
-        const pickingCount = log?.pickingCount || 0;
-        const totalItems = binningCount + pickingCount;
-
-        // Add to compounded totals
-        compoundedBinning += binningCount;
-        compoundedPicking += pickingCount;
-        compoundedTotal += totalItems;
+      // Create data points for each day in the range
+      trendData = eachDayOfInterval({ start: startOfDay(startDate), end: endOfDay(endDate) }).map(date => {
+        const dateKey = format(date, 'yyyy-MM-dd');
+        const log = logMap.get(dateKey);
 
         return {
           date,
-          binningCount,
-          pickingCount,
-          totalItems,
-          compoundedBinning,
-          compoundedPicking,
-          compoundedTotal
+          binningCount: log?.binningCount ?? 0,
+          pickingCount: log?.pickingCount ?? 0,
+          totalItems: (log?.binningCount ?? 0) + (log?.pickingCount ?? 0)
         };
       });
+
       lastUpdated = new Date().toISOString();
     }
 

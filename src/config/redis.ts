@@ -42,7 +42,7 @@ export const CACHE_TTL = {
   DAILY_LOGS_SORTED: 3600, // 1 hour
   DAILY_LOGS_PERIOD: 3600, // 1 hour
   DAILY_LOGS_SEARCH: 1800, // 30 minutes
-  TREND_DATA: 7200 // 2 hours
+  TREND_DATA: 300 // 5 minutes
 } as const;
 
 export default redisClient; 

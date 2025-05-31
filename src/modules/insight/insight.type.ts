@@ -11,9 +11,6 @@ export type TrendItemDataPoint = {
   binningCount: number;
   pickingCount: number;
   totalItems: number;
-  compoundedBinning: number;
-  compoundedPicking: number;
-  compoundedTotal: number;
 };
 
 export type TrendItemResponse = {

@@ -4,7 +4,7 @@ import { DailyLog, DailyLogDetail, DailyLogResult } from './dailyLog.type';
 import { getRedisClient, CACHE_KEYS, CACHE_TTL } from '../../config/redis';
 import { PRODUCTIVITY, ROLES, TEAM_CATEGORIES } from '../../config/constants';
 import logger from '../../utils/logger';
-import { invalidateTrendCache } from '../../utils/trend-cache.util';
+import { invalidateAllTrendCaches } from '../../utils/trend-cache.util';
 
 const prisma = new PrismaClient();
 
@@ -127,8 +127,8 @@ export const createDailyLog = async (
   }
   logger.info('Cache invalidated after daily log creation', { id: dailyLog.id, cacheKeysCount: cacheKeys.length });
 
-  await invalidateTrendCache(dailyLog.logDate, dailyLog.logDate);
-  logger.info('Trend cache invalidated after daily log creation', { id: dailyLog.id });
+  await invalidateAllTrendCaches();
+  logger.info('All trend caches invalidated after daily log creation', { id: dailyLog.id });
 
   return dailyLog;
 };
@@ -299,8 +299,8 @@ export const updateDailyLog = async (
   }
   logger.info('Cache invalidated after daily log update', { id: logId, cacheKeysCount: cacheKeys.length });
 
-  await invalidateTrendCache(dailyLog.logDate, dailyLog.logDate);
-  logger.info('Trend cache invalidated after daily log update', { id: dailyLog.id });
+  await invalidateAllTrendCaches();
+  logger.info('All trend caches invalidated after daily log update', { id: dailyLog.id });
 
   return dailyLog;
 };
@@ -744,8 +744,8 @@ export const deleteDailyLog = async (id: number, userId: number) => {
   }
   logger.info('Cache invalidated after daily log deletion', { id, cacheKeysCount: cacheKeys.length });
 
-  await invalidateTrendCache(log.logDate, log.logDate);
-  logger.info('Trend cache invalidated after daily log deletion', { id });
+  await invalidateAllTrendCaches();
+  logger.info('All trend caches invalidated after daily log deletion', { id });
 
   return { message: 'Daily log deleted successfully' };
 };
