@@ -52,8 +52,19 @@ model SubRole {
 model DailyLog {
   id           Int          @id @default(autoincrement()) @map("id")
   logDate      DateTime     @unique @map("log_date")
+
   binningCount Int          @default(0) @map("binning_count")
+  binningSmallType Int          @default(0) @map("binning_small_type")
+  binningFloorType Int          @default(0) @map("binning_floor_type")
+  binningHeavyDutyType Int          @default(0) @map("binning_heavy_duty_type")
+  binningCabinetType Int          @default(0) @map("binning_cabinet_type")
+
   pickingCount Int          @default(0) @map("picking_count")
+  pickingSmallType Int          @default(0) @map("picking_small_type")
+  pickingFloorType Int          @default(0) @map("picking_floor_type")
+  pickingHeavyDutyType Int          @default(0) @map("picking_heavy_duty_type")
+  pickingCabinetType Int          @default(0) @map("picking_cabinet_type")
+
   totalItems   Int?         @map("total_items")
   issueNotes   String?      @map("issue_notes") @db.Text
   attendance   Attendance[]

@@ -15,21 +15,61 @@ export const createDailyLogSchema = z.object({
         required_error: 'Worker ID is required',
         invalid_type_error: 'Worker ID must be a number',
       })
-      .int('Worker ID must be an integer')
-      .positive('Worker ID must be a positive number')
-    ).min(0, 'At least one worker must be present'),
+        .int('Worker ID must be an integer')
+        .positive('Worker ID must be a positive number')
+    ).min(1, 'At least one worker must be present'),
     workNotes: z.string().optional(),
-    binningCount: z.number({
-      invalid_type_error: 'binningCount must be a number',
+    binningSmallType: z.number({
+      invalid_type_error: 'binningSmallType must be a number',
     })
-      .min(0, 'binningCount must be a non-negative number')
-      .optional(),
-    pickingCount: z.number({
-      invalid_type_error: 'pickingCount must be a number',
+      .min(0, 'binningSmallType must be a non-negative number')
+      .default(0),
+    binningFloorType: z.number({
+      invalid_type_error: 'binningFloorType must be a number',
     })
-      .min(0, 'pickingCount must be a non-negative number')
-      .optional(),
-  }),
+      .min(0, 'binningFloorType must be a non-negative number')
+      .default(0),
+    binningHeavyDutyType: z.number({
+      invalid_type_error: 'binningHeavyDutyType must be a number',
+    })
+      .min(0, 'binningHeavyDutyType must be a non-negative number')
+      .default(0),
+    binningCabinetType: z.number({
+      invalid_type_error: 'binningCabinetType must be a number',
+    })
+      .min(0, 'binningCabinetType must be a non-negative number')
+      .default(0),
+    pickingSmallType: z.number({
+      invalid_type_error: 'pickingSmallType must be a number',
+    })
+      .min(0, 'pickingSmallType must be a non-negative number')
+      .default(0),
+    pickingFloorType: z.number({
+      invalid_type_error: 'pickingFloorType must be a number',
+    })
+      .min(0, 'pickingFloorType must be a non-negative number')
+      .default(0),
+    pickingHeavyDutyType: z.number({
+      invalid_type_error: 'pickingHeavyDutyType must be a number',
+    })
+      .min(0, 'pickingHeavyDutyType must be a non-negative number')
+      .default(0),
+    pickingCabinetType: z.number({
+      invalid_type_error: 'pickingCabinetType must be a number',
+    })
+      .min(0, 'pickingCabinetType must be a non-negative number')
+      .default(0),
+  }).refine(
+    (data) => {
+      const binningTotal = data.binningSmallType + data.binningFloorType + data.binningHeavyDutyType + data.binningCabinetType;
+      const pickingTotal = data.pickingSmallType + data.pickingFloorType + data.pickingHeavyDutyType + data.pickingCabinetType;
+      return binningTotal > 0 || pickingTotal > 0;
+    },
+    {
+      message: 'At least one item type must have a count greater than 0',
+      path: ['binningSmallType'],
+    }
+  ),
 });
 
 export const updateDailyLogSchema = z.object({
@@ -42,28 +82,53 @@ export const updateDailyLogSchema = z.object({
       .pipe(z.number().int('id must be an integer').positive('id must be a positive number')),
   }),
   body: z.object({
-    binningCount: z.number({
-      invalid_type_error: 'binningCount must be a number',
+    binningSmallType: z.number({
+      invalid_type_error: 'binningSmallType must be a number',
     })
-      .min(0, 'binningCount must be a non-negative number')
+      .min(0, 'binningSmallType must be a non-negative number')
       .optional(),
-    pickingCount: z.number({
-      invalid_type_error: 'pickingCount must be a number',
+    binningFloorType: z.number({
+      invalid_type_error: 'binningFloorType must be a number',
     })
-      .min(0, 'pickingCount must be a non-negative number')
+      .min(0, 'binningFloorType must be a non-negative number')
       .optional(),
-    totalItems: z.number({
-      invalid_type_error: 'totalItems must be a number',
+    binningHeavyDutyType: z.number({
+      invalid_type_error: 'binningHeavyDutyType must be a number',
     })
-      .min(0, 'totalItems must be a non-negative number')
+      .min(0, 'binningHeavyDutyType must be a non-negative number')
+      .optional(),
+    binningCabinetType: z.number({
+      invalid_type_error: 'binningCabinetType must be a number',
+    })
+      .min(0, 'binningCabinetType must be a non-negative number')
+      .optional(),
+    pickingSmallType: z.number({
+      invalid_type_error: 'pickingSmallType must be a number',
+    })
+      .min(0, 'pickingSmallType must be a non-negative number')
+      .optional(),
+    pickingFloorType: z.number({
+      invalid_type_error: 'pickingFloorType must be a number',
+    })
+      .min(0, 'pickingFloorType must be a non-negative number')
+      .optional(),
+    pickingHeavyDutyType: z.number({
+      invalid_type_error: 'pickingHeavyDutyType must be a number',
+    })
+      .min(0, 'pickingHeavyDutyType must be a non-negative number')
+      .optional(),
+    pickingCabinetType: z.number({
+      invalid_type_error: 'pickingCabinetType must be a number',
+    })
+      .min(0, 'pickingCabinetType must be a non-negative number')
       .optional(),
     workerPresents: z.array(
       z.number({
         required_error: 'Worker ID is required',
         invalid_type_error: 'Worker ID must be a number',
       })
-      .int('Worker ID must be an integer')
-      .positive('Worker ID must be a positive number')
+        .int('Worker ID must be an integer')
+        .positive('Worker ID must be a positive number')
     ).min(0, 'At least one worker must be present'),
     workNotes: z.string().optional(),
   }),

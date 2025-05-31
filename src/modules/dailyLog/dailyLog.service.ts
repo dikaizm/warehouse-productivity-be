@@ -11,8 +11,14 @@ export const createDailyLog = async (
   logDate: Date,
   workerPresentIds: number[],
   workNotes?: string,
-  binningCount?: number,
-  pickingCount?: number
+  binningSmallType: number = 0,
+  binningFloorType: number = 0,
+  binningHeavyDutyType: number = 0,
+  binningCabinetType: number = 0,
+  pickingSmallType: number = 0,
+  pickingFloorType: number = 0,
+  pickingHeavyDutyType: number = 0,
+  pickingCabinetType: number = 0
 ) => {
   // Validate date is not in the future
   if (logDate > new Date()) {
@@ -49,7 +55,9 @@ export const createDailyLog = async (
     throw new AppError(400, 'One or more workers not found or do not have appropriate roles');
   }
 
-  const totalItems = (binningCount || 0) + (pickingCount || 0);
+  const binningCount = binningSmallType + binningFloorType + binningHeavyDutyType + binningCabinetType;
+  const pickingCount = pickingSmallType + pickingFloorType + pickingHeavyDutyType + pickingCabinetType;
+  const totalItems = binningCount + pickingCount;
 
   // Create daily log and attendance records in a transaction
   const dailyLog = await prisma.$transaction(async (tx) => {
@@ -57,8 +65,16 @@ export const createDailyLog = async (
     const log = await tx.dailyLog.create({
       data: {
         logDate,
-        binningCount: binningCount || 0,
-        pickingCount: pickingCount || 0,
+        binningCount,
+        pickingCount,
+        binningSmallType,
+        binningFloorType,
+        binningHeavyDutyType,
+        binningCabinetType,
+        pickingSmallType,
+        pickingFloorType,
+        pickingHeavyDutyType,
+        pickingCabinetType,
         totalItems,
         issueNotes: workNotes
       }
@@ -85,7 +101,7 @@ export const createDailyLog = async (
             operator: {
               select: {
                 id: true,
-                username: true,
+                fullName: true,
                 role: true,
                 subRole: true
               }
@@ -116,8 +132,14 @@ export const createDailyLog = async (
 export const updateDailyLog = async (
   logId: number,
   userId: number,
-  binningCount: number,
-  pickingCount: number,
+  binningSmallType: number,
+  binningFloorType: number,
+  binningHeavyDutyType: number,
+  binningCabinetType: number,
+  pickingSmallType: number,
+  pickingFloorType: number,
+  pickingHeavyDutyType: number,
+  pickingCabinetType: number,
   workerPresentIds: number[],
   workNotes?: string
 ) => {
@@ -171,6 +193,9 @@ export const updateDailyLog = async (
     throw new AppError(400, 'One or more workers not found or do not have appropriate roles');
   }
 
+  const binningCount = binningSmallType + binningFloorType + binningHeavyDutyType + binningCabinetType;
+  const pickingCount = pickingSmallType + pickingFloorType + pickingHeavyDutyType + pickingCabinetType;
+
   const totalItems = binningCount + pickingCount;
 
   // Update daily log and attendance in a transaction
@@ -181,6 +206,14 @@ export const updateDailyLog = async (
       data: {
         binningCount,
         pickingCount,
+        binningSmallType,
+        binningFloorType,
+        binningHeavyDutyType,
+        binningCabinetType,
+        pickingSmallType,
+        pickingFloorType,
+        pickingHeavyDutyType,
+        pickingCabinetType,
         totalItems,
         issueNotes: workNotes
       }
@@ -288,6 +321,14 @@ const calculateProductivity = (log: any): DailyLog => {
     logDate: log.logDate,
     binningCount: log.binningCount,
     pickingCount: log.pickingCount,
+    binningSmallType: log.binningSmallType,
+    binningFloorType: log.binningFloorType,
+    binningHeavyDutyType: log.binningHeavyDutyType,
+    binningCabinetType: log.binningCabinetType,
+    pickingSmallType: log.pickingSmallType,
+    pickingFloorType: log.pickingFloorType,
+    pickingHeavyDutyType: log.pickingHeavyDutyType,
+    pickingCabinetType: log.pickingCabinetType,
     totalItems: log.totalItems || 0,
     productivity,
     attendance: log.attendance.map((a: any) => ({
@@ -619,6 +660,14 @@ export const getDailyLogById = async (id: number) => {
     logDate: log.logDate,
     binningCount: log.binningCount,
     pickingCount: log.pickingCount,
+    binningSmallType: log.binningSmallType,
+    binningFloorType: log.binningFloorType,
+    binningHeavyDutyType: log.binningHeavyDutyType,
+    binningCabinetType: log.binningCabinetType,
+    pickingSmallType: log.pickingSmallType,
+    pickingFloorType: log.pickingFloorType,
+    pickingHeavyDutyType: log.pickingHeavyDutyType,
+    pickingCabinetType: log.pickingCabinetType,
     totalItems: log.totalItems || 0,
     productivity: calculateProductivity(log).productivity,
     attendance: log.attendance.map((a: any) => ({

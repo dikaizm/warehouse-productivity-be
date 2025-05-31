@@ -4,6 +4,14 @@ export type DailyLog = {
   logDate: Date;
   binningCount: number;
   pickingCount: number;
+  binningSmallType: number;
+  binningFloorType: number;
+  binningHeavyDutyType: number;
+  binningCabinetType: number;
+  pickingSmallType: number;
+  pickingFloorType: number;
+  pickingHeavyDutyType: number;
+  pickingCabinetType: number;
   totalItems: number;
   productivity: number; // This will be the percentage (avgProd/TARGET * 100)
   attendance: {
@@ -27,6 +35,14 @@ export type DailyLogDetail = {
   logDate: Date;
   binningCount: number;
   pickingCount: number;
+  binningSmallType: number;
+  binningFloorType: number;
+  binningHeavyDutyType: number;
+  binningCabinetType: number;
+  pickingSmallType: number;
+  pickingFloorType: number;
+  pickingHeavyDutyType: number;
+  pickingCabinetType: number;
   totalItems: number;
   productivity: number; // This will be the percentage (avgProd/TARGET * 100)
   attendance: {

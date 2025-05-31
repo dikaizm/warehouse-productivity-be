@@ -16,7 +16,19 @@ const prisma = new PrismaClient();
 
 export const createDailyLogController = async (req: Request, res: Response) => {
   try {
-    const { logDate, workerPresents, workNotes, binningCount, pickingCount } = req.body;
+    const { 
+      logDate, 
+      workerPresents, 
+      workNotes, 
+      binningSmallType = 0,
+      binningFloorType = 0,
+      binningHeavyDutyType = 0,
+      binningCabinetType = 0,
+      pickingSmallType = 0,
+      pickingFloorType = 0,
+      pickingHeavyDutyType = 0,
+      pickingCabinetType = 0
+    } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
@@ -42,8 +54,14 @@ export const createDailyLogController = async (req: Request, res: Response) => {
       new Date(logDate),
       workerPresents,
       workNotes,
-      binningCount,
-      pickingCount
+      binningSmallType,
+      binningFloorType,
+      binningHeavyDutyType,
+      binningCabinetType,
+      pickingSmallType,
+      pickingFloorType,
+      pickingHeavyDutyType,
+      pickingCabinetType
     );
 
     res.status(201).json({
@@ -70,7 +88,7 @@ export const createDailyLogController = async (req: Request, res: Response) => {
 export const updateDailyLogController = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { binningCount, pickingCount, workerPresents, workNotes } = req.body;
+    const { binningSmallType = 0, binningFloorType = 0, binningHeavyDutyType = 0, binningCabinetType = 0, pickingSmallType = 0, pickingFloorType = 0, pickingHeavyDutyType = 0, pickingCabinetType = 0, workerPresents, workNotes } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
@@ -85,8 +103,14 @@ export const updateDailyLogController = async (req: Request, res: Response) => {
     const dailyLog = await updateDailyLog(
       logId,
       userId,
-      binningCount,
-      pickingCount,
+      binningSmallType,
+      binningFloorType,
+      binningHeavyDutyType,
+      binningCabinetType,
+      pickingSmallType,
+      pickingFloorType,
+      pickingHeavyDutyType,
+      pickingCabinetType,
       workerPresents,
       workNotes
     );
