@@ -61,8 +61,8 @@ export const getTrendItem = async (startDate: Date, endDate: Date): Promise<Tren
 
     try {
       const cachedTrendData = await getTrendData(startDate, endDate);
-      trendData = cachedTrendData.data.map((point: TrendDataPoint) => ({
-        date: parseISO(point.date),
+      trendData = cachedTrendData.data.map(point => ({
+        date: new Date(point.date), // Convert ISO string to Date
         binningCount: point.binningCount,
         pickingCount: point.pickingCount,
         totalItems: point.totalItems
@@ -82,7 +82,8 @@ export const getTrendItem = async (startDate: Date, endDate: Date): Promise<Tren
         select: {
           logDate: true,
           binningCount: true,
-          pickingCount: true
+          pickingCount: true,
+          totalItems: true
         },
         orderBy: {
           logDate: 'asc'
@@ -95,7 +96,8 @@ export const getTrendItem = async (startDate: Date, endDate: Date): Promise<Tren
           format(log.logDate, 'yyyy-MM-dd'),
           {
             binningCount: log.binningCount || 0,
-            pickingCount: log.pickingCount || 0
+            pickingCount: log.pickingCount || 0,
+            totalItems: log.totalItems || 0
           }
         ])
       );
@@ -106,10 +108,10 @@ export const getTrendItem = async (startDate: Date, endDate: Date): Promise<Tren
         const log = logMap.get(dateKey);
 
         return {
-          date,
+          date, // Use the Date object directly
           binningCount: log?.binningCount || 0,
           pickingCount: log?.pickingCount || 0,
-          totalItems: (log?.binningCount || 0) + (log?.pickingCount || 0)
+          totalItems: log?.totalItems || 0
         };
       });
 

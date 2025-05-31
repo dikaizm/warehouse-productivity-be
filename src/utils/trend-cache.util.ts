@@ -1,12 +1,13 @@
-import { PrismaClient, DailyLog } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { getRedisClient, CACHE_KEYS, CACHE_TTL } from '../config/redis';
-import { startOfDay, endOfDay, format, parseISO, eachDayOfInterval } from 'date-fns';
+import { startOfDay, endOfDay, format, eachDayOfInterval } from 'date-fns';
 import logger from './logger';
+import { TrendItemDataPoint } from '@/modules/insight/insight.type';
 
 const prisma = new PrismaClient();
 
 export type TrendDataPoint = {
-  date: string;
+  date: string; // ISO date string for cache
   binningCount: number;
   pickingCount: number;
   totalItems: number;
@@ -20,8 +21,6 @@ export type TrendCacheData = {
     endDate: string;
   };
 };
-
-type LogData = Pick<DailyLog, 'logDate' | 'binningCount' | 'pickingCount'>;
 
 /**
  * Calculate trend data for a given date range
@@ -41,12 +40,13 @@ export const calculateTrendData = async (
     select: {
       logDate: true,
       binningCount: true,
-      pickingCount: true
+      pickingCount: true,
+      totalItems: true
     },
     orderBy: {
       logDate: 'asc'
     }
-  }) as LogData[];
+  });
 
   // Create a map of logs for easy lookup by date
   const logMap = new Map(
@@ -54,7 +54,8 @@ export const calculateTrendData = async (
       format(log.logDate, 'yyyy-MM-dd'),
       {
         binningCount: log.binningCount || 0,
-        pickingCount: log.pickingCount || 0
+        pickingCount: log.pickingCount || 0,
+        totalItems: log.totalItems || 0
       }
     ])
   );
@@ -66,9 +67,9 @@ export const calculateTrendData = async (
 
     return {
       date: dateKey,
-      binningCount: log?.binningCount ?? 0,
-      pickingCount: log?.pickingCount ?? 0,
-      totalItems: (log?.binningCount ?? 0) + (log?.pickingCount ?? 0)
+      binningCount: log?.binningCount || 0,
+      pickingCount: log?.pickingCount || 0,
+      totalItems: log?.totalItems || 0
     };
   });
 };

@@ -64,7 +64,7 @@ export class OverviewService {
     const productivityActual = (binningProd + pickingProd) / 2;
 
     return {
-      totalItemsToday: dailyLog.totalItems,
+      totalItemsToday: dailyLog.totalItems ?? 0,
       presentWorkers: dailyLog.attendance.length,
       productivityTarget: PRODUCTIVITY.TARGET,
       productivityActual: Math.round(productivityActual)
