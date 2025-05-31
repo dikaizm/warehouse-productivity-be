@@ -4,7 +4,7 @@ import { DailyLog, DailyLogDetail, DailyLogResult } from './dailyLog.type';
 import { getRedisClient, CACHE_KEYS, CACHE_TTL } from '../../config/redis';
 import { PRODUCTIVITY, ROLES, TEAM_CATEGORIES } from '../../config/constants';
 import logger from '../../utils/logger';
-import { invalidateTrendCache } from '@/utils/trend-cache.util';
+import { invalidateTrendCache } from '../../utils/trend-cache.util';
 
 const prisma = new PrismaClient();
 
