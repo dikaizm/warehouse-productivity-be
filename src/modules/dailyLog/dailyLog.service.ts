@@ -312,17 +312,11 @@ const calculateProductivity = (log: any): DailyLog => {
   const pickingOperators = log.attendance.filter((a: any) => a.operator.subRole.teamCategory === TEAM_CATEGORIES.PICKING).length;
 
   // Calculate per-worker productivity by team
-  const binPerWorker = binningOperators > 0 ? log.binningCount / binningOperators : 0;
-  const pickPerWorker = pickingOperators > 0 ? log.pickingCount / pickingOperators : 0;
+  const prodItemIncoming = binningOperators > 0 ? log.binningCount / binningOperators : 0;
+  const prodItemOutgoing = pickingOperators > 0 ? log.pickingCount / pickingOperators : 0;
 
-  // Calculate average per-worker productivity
-  const avgProd = (binPerWorker + pickPerWorker) / 2;
-
-  // Calculate final productivity percentage
-  const productivity = PRODUCTIVITY.TARGET > 0 
-    ? (avgProd / PRODUCTIVITY.TARGET) * 100 
-    : 0;
-
+  const productivity = log.totalItems / (8 * PRODUCTIVITY.TARGET) * 100;
+  logger.info('productivity', { productivity });
   return {
     id: log.id,
     logDate: log.logDate,
@@ -338,6 +332,8 @@ const calculateProductivity = (log: any): DailyLog => {
     pickingCabinetType: log.pickingCabinetType,
     totalItems: log.totalItems || 0,
     productivity,
+    prodItemIncoming,
+    prodItemOutgoing,
     attendance: log.attendance.map((a: any) => ({
       operatorId: a.operatorId,
       operatorName: a.operator.fullName,

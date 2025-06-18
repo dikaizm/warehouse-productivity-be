@@ -14,6 +14,8 @@ export type DailyLog = {
   pickingCabinetType: number;
   totalItems: number;
   productivity: number; // This will be the percentage (avgProd/TARGET * 100)
+  prodItemIncoming: number;
+  prodItemOutgoing: number;
   attendance: {
     operatorId: number;
     operatorName: string;
