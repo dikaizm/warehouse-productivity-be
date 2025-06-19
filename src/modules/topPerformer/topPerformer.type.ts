@@ -1,10 +1,9 @@
 export type TopPerformer = {
     operatorId: number;
     operatorName: string;
-    avgMonthlyProductivity: number;
-    avgMonthlyWorkdays: number;
-    productivity: {
-        avgActual: number;
+    currentMonthWorkdays: number;
+    currentMonthItems: {
+        actual: number;
         target: number;
     },
     operatorSubRole: {

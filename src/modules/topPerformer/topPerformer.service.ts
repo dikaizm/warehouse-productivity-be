@@ -8,16 +8,14 @@ const prisma = new PrismaClient();
 
 export const getTopPerformers = async (search: string): Promise<TopPerformer[]> => {
   try {
-    // Get operational users
+    // Ambil semua operator operasional
     const operationalUsers = await prisma.user.findMany({
       where: {
-        role: {
-          name: ROLES.OPERASIONAL
-        },
+        role: { name: ROLES.OPERASIONAL },
         ...(search && {
           OR: [
             { fullName: { contains: search } },
-            { email: { contains: search } }
+            { email: { contains: search } },
           ]
         })
       },
@@ -28,130 +26,85 @@ export const getTopPerformers = async (search: string): Promise<TopPerformer[]> 
         subRole: {
           select: {
             name: true,
-            teamCategory: true
+            teamCategory: true,
           }
         }
       }
     });
 
-    const binningUsers = operationalUsers.filter(user => user.subRole?.teamCategory === TEAM_CATEGORIES.BINNING);
-    const pickingUsers = operationalUsers.filter(user => user.subRole?.teamCategory === TEAM_CATEGORIES.PICKING);
+    const FIXED_MONTH_TARGET = 22 * 55; // 22 hari kerja × 55 items per hari
 
-    // Get all daily logs
+    // Inisialisasi performerMap dengan target tetap
+    const performerMap: Record<string, TopPerformer> = {};
+    operationalUsers.forEach(u => {
+      performerMap[u.id] = {
+        operatorId: u.id,
+        operatorName: u.fullName,
+        currentMonthWorkdays: 0,
+        currentMonthItems: {
+          actual: 0,
+          target: FIXED_MONTH_TARGET
+        },
+        operatorSubRole: u.subRole,
+      };
+    });
+
+    // Rentang tanggal: awal & akhir bulan ini
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    // Ambil logs bulan ini untuk semua operator tsb
     const logs = await prisma.dailyLog.findMany({
+      where: {
+        logDate: { gte: firstOfMonth, lte: lastOfMonth }
+      },
       include: {
         attendance: {
           where: {
-            operatorId: {
-              in: [...binningUsers.map(user => user.id), ...pickingUsers.map(user => user.id)]
-            }
+            operatorId: { in: operationalUsers.map(u => u.id) }
           },
           include: {
             operator: {
               select: {
                 id: true,
-                fullName: true,
-                subRole: {
-                  select: {
-                    name: true,
-                    teamCategory: true,
-                  }
-                }
+                subRole: { select: { teamCategory: true } }
               }
             }
           }
         }
       },
-      orderBy: {
-        logDate: 'asc'
-      }
+      orderBy: { logDate: 'asc' }
     });
 
-    const topPerformers: TopPerformer[] = [];
+    // Hitung actual
+    for (const log of logs) {
+      const binOps = log.attendance.filter(a => a.operator.subRole.teamCategory === TEAM_CATEGORIES.BINNING).length;
+      const pickOps = log.attendance.filter(a => a.operator.subRole.teamCategory === TEAM_CATEGORIES.PICKING).length;
 
-    for (const user of operationalUsers) {
-      const userLogs = logs.filter(log => log.attendance.some(attendance => attendance.operatorId === user.id));
+      const perBinning = binOps > 0 ? log.binningCount / binOps : 0;
+      const perPicking = pickOps > 0 ? log.pickingCount / pickOps : 0;
 
-      const performer: TopPerformer = {
-        operatorId: user.id,
-        operatorName: user.fullName ?? '',
-        avgMonthlyProductivity: 0,
-        avgMonthlyWorkdays: 0,
-        productivity: {
-          avgActual: 0,
-          target: PRODUCTIVITY.TARGET * PRODUCTIVITY.WORKDAYS
-        },
-        operatorSubRole: {
-          name: user.subRole?.name ?? '',
-          teamCategory: user.subRole?.teamCategory ?? ''
-        }
-      }
+      for (const att of log.attendance) {
+        const perf = performerMap[att.operator.id];
+        if (!perf) continue;
 
-      const monthlyProcessedItems: {
-        monthYear: string;
-        processedItems: number;
-        workdays: number;
-      }[] = [];
-
-      for (const log of userLogs) {
-        const monthYear = format(log.logDate, 'yyyy-MM');
-        const existingItem = monthlyProcessedItems.find(item => item.monthYear === monthYear);
-        if (!existingItem) {
-          let workdays = 0;
-
-          for (const attendance of log.attendance) {
-            if (attendance.operatorId === user.id) {
-              workdays++;
-            }
-          }
-
-          if (performer.operatorSubRole.teamCategory === TEAM_CATEGORIES.BINNING) {
-            monthlyProcessedItems.push({monthYear, processedItems: log.binningCount ?? 0, workdays})
-          } else {
-            monthlyProcessedItems.push({monthYear, processedItems: log.pickingCount ?? 0, workdays})
-          }
+        if (att.operator.subRole.teamCategory === TEAM_CATEGORIES.BINNING) {
+          perf.currentMonthItems.actual += perBinning;
         } else {
-          if (performer.operatorSubRole.teamCategory === TEAM_CATEGORIES.BINNING) {
-            existingItem.processedItems += log.binningCount ?? 0;
-          } else {
-            existingItem.processedItems += log.pickingCount ?? 0;
-          }
+          perf.currentMonthItems.actual += perPicking;
         }
+
+        perf.currentMonthWorkdays++;
       }
-
-      const monthlyProductivity: {
-        monthYear: string;
-        productivity: number;
-      }[] = [];
-
-      for (const item of monthlyProcessedItems) {
-        const existingItem = monthlyProductivity.find(item => item.monthYear === item.monthYear);
-        if (!existingItem) {
-          monthlyProductivity.push({monthYear: item.monthYear, productivity: item.processedItems / item.workdays * PRODUCTIVITY.TARGET})
-        } else {
-          existingItem.productivity += item.processedItems / item.workdays * PRODUCTIVITY.TARGET;
-        }
-      }
-
-      const monthlyProductivitySum = monthlyProductivity.reduce((acc, item) => acc + item.productivity, 0);
-      const monthlyWorkdaysSum = monthlyProcessedItems.reduce((acc, item) => acc + item.workdays, 0);
-
-      const avgMonthlyProductivity = monthlyProductivitySum / (monthlyProductivity.length * PRODUCTIVITY.TARGET);
-      const avgMonthlyWorkdays = monthlyWorkdaysSum / monthlyProductivity.length;
-
-      performer.avgMonthlyProductivity = avgMonthlyProductivity;
-      performer.avgMonthlyWorkdays = avgMonthlyWorkdays;
-      performer.productivity.avgActual = avgMonthlyProductivity;
-      performer.productivity.target = PRODUCTIVITY.TARGET * PRODUCTIVITY.WORKDAYS;
-
-      topPerformers.push(performer);
     }
 
-    topPerformers.sort((a, b) => b.avgMonthlyProductivity - a.avgMonthlyProductivity);
+    // Ubah map jadi array & sortir by actual desc
+    return Object.values(performerMap)
+      .sort((a, b) => b.currentMonthItems.actual - a.currentMonthItems.actual);
 
-    return topPerformers;
   } catch (error) {
     logger.error('Error in getTopPerformers:', error);
     throw error;
   }
-}; 
+};
