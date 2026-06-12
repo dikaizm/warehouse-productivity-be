@@ -35,7 +35,7 @@ services:
       NODE_ENV: production
       MAIL_RESEND_API_KEY: ${MAIL_RESEND_API_KEY}
     ports:
-      - "3000:3000"
+      - "5050:5050"
     volumes:
       - ./public:/app/public
     command: >
