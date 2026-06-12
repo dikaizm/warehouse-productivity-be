@@ -25,11 +25,11 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
-# Copy the compiled JS seed (if produced) into the production prisma folder
-COPY --from=builder /app/dist/prisma/seed.js ./prisma/seed.js
-# Also copy prisma schema and migrations for Prisma CLI/runtime
+# Copy prisma schema and migrations for Prisma CLI/runtime
 COPY --from=builder /app/prisma ./prisma
+# Copy the compiled JS seed (if produced) into the production prisma folder (after copying prisma)
+COPY --from=builder /app/dist/prisma/seed.js ./prisma/seed.js
 COPY --from=builder /app/public ./public
 
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && node prisma/seed.js || echo 'no compiled seed found' && node dist/server.js"]
+CMD ["sh", "-c", "npx prisma generate && (npx prisma migrate deploy || npx prisma db push) && (node prisma/seed.js || echo 'no compiled seed found') && node dist/server.js"]
