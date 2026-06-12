@@ -20,12 +20,24 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
-app.use(cors({
-  origin: '*',
+
+// CORS configuration: allow origins dynamically and handle preflight
+const corsOptions = {
+  origin: (origin: any, callback: any) => {
+    // Allow requests with no origin (like curl, server-to-server)
+    if (!origin) return callback(null, true);
+    // In production you might restrict to an allow-list from env
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: false
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  credentials: true,
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+// Explicitly handle preflight for all routes
+app.options('*', cors(corsOptions));
 
 // Rate limiting
 // const limiter = rateLimit({
