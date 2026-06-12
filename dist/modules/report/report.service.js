@@ -1,0 +1,256 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.exportReportData = exports.getReportData = void 0;
+const client_1 = require("@prisma/client");
+const date_fns_1 = require("date-fns");
+const logger_1 = __importDefault(require("../../utils/logger"));
+const constants_1 = require("../../config/constants");
+const json2csv_1 = require("json2csv");
+const pdfkit_1 = __importDefault(require("pdfkit"));
+const prisma = new client_1.PrismaClient();
+// Helper function to get report data (used by both filter and export)
+const getReportDataInternal = async (filter) => {
+    try {
+        const { startDate, endDate, type, search } = filter;
+        // Get all operational users (filtered by search if provided)
+        const users = await prisma.user.findMany({
+            where: {
+                role: {
+                    name: constants_1.ROLES.OPERASIONAL
+                },
+                ...(search && {
+                    OR: [
+                        { fullName: { contains: search } }
+                    ]
+                })
+            },
+            select: {
+                id: true,
+                fullName: true,
+                email: true
+            }
+        });
+        // Get logs within date range
+        const logs = await prisma.dailyLog.findMany({
+            where: {
+                logDate: {
+                    gte: (0, date_fns_1.startOfDay)(startDate),
+                    lte: (0, date_fns_1.endOfDay)(endDate)
+                }
+            },
+            include: {
+                attendance: {
+                    where: {
+                        operatorId: {
+                            in: users.map(u => u.id)
+                        }
+                    },
+                    include: {
+                        operator: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                subRole: {
+                                    select: {
+                                        name: true,
+                                        teamCategory: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: {
+                logDate: 'asc'
+            },
+            take: 10
+        });
+        // Initialize data points based on report type
+        const dataPoints = new Map();
+        // Helper function to get time key based on report type
+        const getTimeKey = (date) => {
+            switch (type) {
+                case 'daily':
+                    return (0, date_fns_1.format)(date, 'yyyy-MM-dd');
+                case 'weekly':
+                    return (0, date_fns_1.format)(date, 'yyyy-\'W\'ww');
+                case 'monthly':
+                    return (0, date_fns_1.format)(date, 'yyyy-MM');
+                default:
+                    return (0, date_fns_1.format)(date, 'yyyy-MM-dd');
+            }
+        };
+        // Process logs and aggregate data
+        logs.forEach(log => {
+            const timeKey = getTimeKey(log.logDate);
+            if (!dataPoints.has(timeKey)) {
+                dataPoints.set(timeKey, new Map());
+            }
+            const timePointData = dataPoints.get(timeKey);
+            const presentWorkers = log.attendance.length;
+            if (presentWorkers === 0)
+                return;
+            const totalItems = log.totalItems || 0;
+            const dailyProductivity = totalItems / presentWorkers;
+            // Update metrics for each present operator
+            log.attendance.forEach(attendance => {
+                const operator = attendance.operator;
+                if (!timePointData.has(operator.id)) {
+                    timePointData.set(operator.id, {
+                        time: timeKey,
+                        operatorId: operator.id,
+                        operatorName: operator.fullName || 'Unknown',
+                        operatorSubRole: operator.subRole?.name || 'Unknown',
+                        binningCount: 0,
+                        pickingCount: 0,
+                        totalItems: 0,
+                        productivity: 0,
+                    });
+                }
+                const point = timePointData.get(operator.id);
+                point.binningCount += log.binningCount || 0;
+                point.pickingCount += log.pickingCount || 0;
+                point.totalItems += totalItems;
+                point.productivity = dailyProductivity;
+            });
+        });
+        const allDataPoints = Array.from(dataPoints.values()).flatMap(operatorData => Array.from(operatorData.values()));
+        // Calculate meta information
+        const totalOperators = users.length;
+        const totalItems = allDataPoints.reduce((sum, point) => sum + point.totalItems, 0);
+        const meta = {
+            filter,
+            totalOperators,
+            totalItems,
+            generatedAt: new Date().toISOString()
+        };
+        return {
+            meta,
+            data: allDataPoints
+        };
+    }
+    catch (error) {
+        logger_1.default.error('Error in getReportDataInternal service:', error);
+        throw error;
+    }
+};
+/**
+ * Get report data based on filter parameters
+ * @param filter Report filter parameters
+ * @returns Promise<ReportData> Report data with meta information
+ */
+exports.getReportData = getReportDataInternal;
+/**
+ * Export report data to specified format
+ * @param filter Report export filter parameters
+ * @returns Promise<Buffer> Exported file buffer
+ */
+const exportReportData = async (filter) => {
+    try {
+        const { fileFormat } = filter;
+        const reportData = await getReportDataInternal(filter);
+        switch (fileFormat) {
+            case 'csv':
+                return exportToCsv(reportData);
+            case 'pdf':
+                return exportToPdf(reportData);
+            default:
+                throw new Error(`Unsupported export format: ${fileFormat}`);
+        }
+    }
+    catch (error) {
+        logger_1.default.error('Error in exportReportData service:', error);
+        throw error;
+    }
+};
+exports.exportReportData = exportReportData;
+/**
+ * Export report data to CSV format
+ * @param reportData Report data to export
+ * @returns Promise<Buffer> CSV file buffer
+ */
+const exportToCsv = async (reportData) => {
+    const fields = [
+        'time',
+        'operatorId',
+        'operatorName',
+        'operatorSubRole',
+        'binningCount',
+        'pickingCount',
+        'totalItems',
+        'productivity',
+    ];
+    const parser = new json2csv_1.Parser({ fields });
+    const csv = parser.parse(reportData.data);
+    return Buffer.from(csv);
+};
+/**
+ * Export report data to PDF format
+ * @param reportData Report data to export
+ * @returns Promise<Buffer> PDF file buffer
+ */
+const exportToPdf = async (reportData) => {
+    return new Promise((resolve, reject) => {
+        try {
+            const chunks = [];
+            const doc = new pdfkit_1.default();
+            // Handle PDF generation events
+            doc.on('data', chunk => chunks.push(chunk));
+            doc.on('end', () => resolve(Buffer.concat(chunks)));
+            doc.on('error', reject);
+            // Add title
+            doc.fontSize(16).text('Report Data', { align: 'center' });
+            doc.moveDown();
+            // Add meta information
+            doc.fontSize(12).text('Meta Information:');
+            doc.fontSize(10).text(`Total Operators: ${reportData.meta.totalOperators}`);
+            doc.text(`Total Items: ${reportData.meta.totalItems}`);
+            doc.text(`Generated At: ${reportData.meta.generatedAt}`);
+            doc.moveDown();
+            // Add data table
+            doc.fontSize(12).text('Report Data:');
+            doc.moveDown();
+            // Table headers
+            const headers = ['Time', 'Operator', 'Binning', 'Picking', 'Total', 'Productivity'];
+            const columnWidths = [80, 100, 60, 60, 60, 60];
+            let x = 50;
+            let y = doc.y;
+            // Draw headers
+            headers.forEach((header, i) => {
+                doc.text(header, x, y, { width: columnWidths[i] });
+                x += columnWidths[i];
+            });
+            // Draw data rows
+            y += 20;
+            reportData.data.forEach(row => {
+                x = 50;
+                doc.text(row.time, x, y, { width: columnWidths[0] });
+                x += columnWidths[0];
+                doc.text(row.operatorName, x, y, { width: columnWidths[1] });
+                x += columnWidths[1];
+                doc.text(row.binningCount.toString(), x, y, { width: columnWidths[2] });
+                x += columnWidths[2];
+                doc.text(row.pickingCount.toString(), x, y, { width: columnWidths[3] });
+                x += columnWidths[3];
+                doc.text(row.totalItems.toString(), x, y, { width: columnWidths[4] });
+                x += columnWidths[4];
+                doc.text(row.productivity.toFixed(2), x, y, { width: columnWidths[5] });
+                x += columnWidths[5];
+                y += 20;
+                // Add new page if needed
+                if (y > 700) {
+                    doc.addPage();
+                    y = 50;
+                }
+            });
+            doc.end();
+        }
+        catch (error) {
+            reject(error);
+        }
+    });
+};

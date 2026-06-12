@@ -15,8 +15,8 @@ yarn.lock
 .env.production
 
 # Build output
-dist/
-build/
+# dist/
+# build/
 *.tsbuildinfo
 
 # Logs
