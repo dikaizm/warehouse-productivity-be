@@ -9,7 +9,7 @@ services:
       MYSQL_USER: warehouse_user
       MYSQL_PASSWORD: 1234abcd
     ports:
-      - "3310:3306"
+      - "3306:3306"
     volumes:
       - db_data:/var/lib/mysql
 
