@@ -42,7 +42,7 @@ services:
       sh -c "sleep 10 &&
              npx prisma generate &&
              (npx prisma migrate deploy || npx prisma db push) &&
-             (node prisma/seed.js || echo 'no compiled seed found') &&
+             (node dist/prisma/seed.js || echo 'no compiled seed found') &&
              node dist/server.js"
     restart: always
 

@@ -14,4 +14,4 @@ COPY prisma ./prisma
 COPY public ./public
 
 EXPOSE 5050
-CMD ["sh", "-c", "npx prisma generate && (npx prisma migrate deploy || npx prisma db push) && (node prisma/seed.js || echo 'no compiled seed found') && node dist/server.js"]
+CMD ["sh", "-c", "npx prisma generate && (npx prisma migrate deploy || npx prisma db push) && (node dist/prisma/seed.js || echo 'no compiled seed found') && node dist/server.js"]
