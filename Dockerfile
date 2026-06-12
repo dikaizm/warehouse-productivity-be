@@ -7,7 +7,7 @@ COPY . .
 RUN npm run build
 RUN npx prisma generate
 # Compile the Prisma seed (TypeScript) into JS so production image can run it without ts-node
-RUN npx tsc prisma/seed.ts --outDir dist/prisma --module commonjs --target ES2020 || true
+RUN npx tsc -p tsconfig.seed.json
 
 # ---- Production Stage ----
 FROM node:20-slim
@@ -27,7 +27,6 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 # Copy prisma schema and migrations for Prisma CLI/runtime
 COPY --from=builder /app/prisma ./prisma
-# Copy the compiled JS seed (if produced) into the production prisma folder (after copying prisma)
 COPY --from=builder /app/dist/prisma/seed.js ./prisma/seed.js
 COPY --from=builder /app/public ./public
 
